@@ -41,7 +41,7 @@ class ResponseForm(models.ModelForm):
     def __init__(self, *args, **kwargs):
         """Expects a survey object to be passed in initially"""
         self.survey = kwargs.pop("survey")
-        self.user = kwargs.pop("user")
+        self.user = kwargs.pop("user", None)
         try:
             self.step = int(kwargs.pop("step"))
         except KeyError:
@@ -63,6 +63,7 @@ class ResponseForm(models.ModelForm):
         self.add_questions(kwargs.get("data"))
 
         self._get_preexisting_response()
+        print("R", self.response)
 
         if not self.survey.editable_answers and self.response is not None:
             for name in self.fields.keys():
@@ -109,17 +110,20 @@ class ResponseForm(models.ModelForm):
         if self.response:
             return self.response
 
-        if not self.user.is_authenticated:
-            self.response = None
-        else:
-            try:
-                self.response = Response.objects.prefetch_related("user", "survey").get(
-                    user=self.user, survey=self.survey
-                )
-            except Response.DoesNotExist:
-                LOGGER.debug("No saved response for '%s' for user %s", self.survey, self.user)
-                self.response = None
+        self.response = None
         return self.response
+
+        #if not self.user.is_authenticated:
+        #    self.response = None
+        #else:
+        #    try:
+        #        self.response = Response.objects.prefetch_related("user", "survey").get(
+        #            user=self.user, survey=self.survey
+        #        )
+        #    except Response.DoesNotExist:
+        #        LOGGER.debug("No saved response for '%s' for user %s", self.survey, self.user)
+        #        self.response = None
+        #return self.response
 
     def _get_preexisting_answers(self):
         """Recover pre-existing answers in database.
@@ -272,7 +276,7 @@ class ResponseForm(models.ModelForm):
         response.survey = self.survey
         response.interview_uuid = self.uuid
         if self.user.is_authenticated:
-            response.user = self.user
+            response.user_id = self.user.user_id
         response.save()
         # response "raw" data as dict (for signal)
         data = {"survey_id": response.survey.id, "interview_uuid": response.interview_uuid, "responses": []}

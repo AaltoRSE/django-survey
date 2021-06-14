@@ -28,10 +28,10 @@ class Survey2Csv(Survey2X):
     @staticmethod
     def get_user_line(question_order, response):
         """Creating a line for a user"""
-        LOGGER.debug("\tTreating answer from %s", response.user)
+        LOGGER.debug("\tTreating answer from %s", response.user_id)
         user_answers = {}
         try:
-            user_answers["user"] = response.user.username
+            user_answers["user"] = response.user_id
         except AttributeError:
             # 'NoneType' object has no attribute 'username'
             user_answers["user"] = _("Anonymous")

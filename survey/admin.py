@@ -38,12 +38,12 @@ class AnswerBaseInline(admin.StackedInline):
 
 
 class ResponseAdmin(admin.ModelAdmin):
-    list_display = ("interview_uuid", "survey", "created", "user")
+    list_display = ("interview_uuid", "survey", "created", "user_id")
     list_filter = ("survey", "created")
     date_hierarchy = "created"
     inlines = [AnswerBaseInline]
     # specifies the order as well as which fields to act on
-    readonly_fields = ("survey", "created", "updated", "interview_uuid", "user")
+    readonly_fields = ("survey", "created", "updated", "interview_uuid", "user_id")
 
 
 # admin.site.register(Question, QuestionInline)

@@ -25,14 +25,14 @@ class Response(models.Model):
     created = models.DateTimeField(_("Creation date"), auto_now_add=True)
     updated = models.DateTimeField(_("Update date"), auto_now=True)
     survey = models.ForeignKey(Survey, on_delete=models.CASCADE, verbose_name=_("Survey"), related_name="responses")
-    user = models.ForeignKey(user_model, on_delete=models.SET_NULL, verbose_name=_("User"), null=True, blank=True)
     interview_uuid = models.CharField(_("Interview unique identifier"), max_length=36)
+    user_id = models.CharField(verbose_name=_("User_ID"), max_length=32, blank=True)
 
     class Meta:
         verbose_name = _("Set of answers to surveys")
         verbose_name_plural = _("Sets of answers to surveys")
 
     def __str__(self):
-        msg = f"Response to {self.survey} by {self.user}"
+        msg = f"Response to {self.survey} by {self.user_id}"
         msg += f" on {self.created}"
         return msg

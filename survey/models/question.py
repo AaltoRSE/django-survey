@@ -204,7 +204,7 @@ class Question(models.Model):
                     else:
                         self.__add_user_cardinality(
                             cardinality,
-                            answer.response.user,
+                            answer.response.user_id,
                             value,
                             other_question,
                             group_by_letter_case,

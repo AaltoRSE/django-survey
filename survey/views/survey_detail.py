@@ -6,6 +6,8 @@ from django.views.generic import View
 
 from survey.decorators import survey_available
 from survey.forms import ResponseForm
+from django.shortcuts import get_object_or_404
+from survey.models import Survey
 
 LOGGER = logging.getLogger(__name__)
 
