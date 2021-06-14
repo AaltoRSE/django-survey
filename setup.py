@@ -25,6 +25,9 @@ DEPENDENCIES = [
     "pytz>=2018.9",
     "ordereddict>=1.1",
     "pyyaml>=4.2b1",
+    "django-rosetta",
+    "scipy",
+    "nltk"
 ]
 SANKEY_DEPENDENCIES = ["pySankeyBeta~=1.3.0"]
 DEV_DEPENDENCIES = [
