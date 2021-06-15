@@ -35,6 +35,9 @@ class Survey(models.Model):
     publish_date = models.DateField(_("Publication date"), blank=True, null=False, default=now)
     expire_date = models.DateField(_("Expiration date"), blank=True, null=False, default=in_duration_day)
 
+    # URL to redirect when form is filled out
+    redirect_on_success = models.CharField("Redirect of success", max_length=64, default="", blank=True)
+
     class Meta:
         verbose_name = _("survey")
         verbose_name_plural = _("surveys")

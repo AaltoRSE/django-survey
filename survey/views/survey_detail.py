@@ -103,4 +103,6 @@ class SurveyDetail(View):
             if "next" in request.session:
                 del request.session["next"]
             return redirect(next_)
+        if survey.redirect_on_success is not "":
+            return redirect("/")
         return redirect("survey-confirmation", uuid=response.interview_uuid)
