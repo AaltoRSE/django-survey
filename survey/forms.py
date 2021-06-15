@@ -302,4 +302,9 @@ class ResponseForm(models.ModelForm):
                 answer.response = response
                 answer.save()
         survey_completed.send(sender=Response, instance=response, data=data)
+
+        # Succesfully saved the survey. Mark first survey done
+        # (a bit hacky, this will be done for all surveys)
+        self.user.first_survey_done = True
+        self.user.save()
         return response
