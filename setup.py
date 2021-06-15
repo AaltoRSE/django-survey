@@ -27,7 +27,8 @@ DEPENDENCIES = [
     "pyyaml>=4.2b1",
     "django-rosetta",
     "scipy",
-    "nltk"
+    "nltk",
+    "pandas"
 ]
 SANKEY_DEPENDENCIES = ["pySankeyBeta~=1.3.0"]
 DEV_DEPENDENCIES = [
