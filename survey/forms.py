@@ -63,7 +63,6 @@ class ResponseForm(models.ModelForm):
         self.add_questions(kwargs.get("data"))
 
         self._get_preexisting_response()
-        print("R", self.response)
 
         if not self.survey.editable_answers and self.response is not None:
             for name in self.fields.keys():
@@ -301,7 +300,7 @@ class ResponseForm(models.ModelForm):
                 LOGGER.debug("Creating answer for question %d of type %s : %s", q_id, answer.question.type, field_value)
                 answer.response = response
                 answer.save()
-        survey_completed.send(sender=Response, instance=response, data=data)
+        survey_completed.send(sender=Response, instance=response, data=data, user=self.user)
 
         # Succesfully saved the survey. Mark first survey done
         # (a bit hacky, this will be done for all surveys)
