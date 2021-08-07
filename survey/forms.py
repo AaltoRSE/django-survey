@@ -300,10 +300,6 @@ class ResponseForm(models.ModelForm):
                 LOGGER.debug("Creating answer for question %d of type %s : %s", q_id, answer.question.type, field_value)
                 answer.response = response
                 answer.save()
-        survey_completed.send(sender=Response, instance=response, data=data, user=self.user)
 
-        # Succesfully saved the survey. Mark first survey done
-        # (a bit hacky, this will be done for all surveys)
-        self.user.first_survey_done = True
-        self.user.save()
+        survey_completed.send(sender=Response, instance=response, data=data, user=self.user)
         return response
