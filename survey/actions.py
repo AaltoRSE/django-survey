@@ -31,6 +31,7 @@ def copy_survey(modeladmin, request, queryset):
         # Create a copy of the survey object by saving it with a new pk
         survey.pk = None
         survey.name = survey.name + " Copy"
+        survey.is_published = False
         survey.save()
 
         # Note new survey id
