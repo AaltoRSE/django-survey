@@ -1,3 +1,4 @@
+import datetime
 import logging
 import uuid
 
@@ -9,7 +10,7 @@ from django.utils.text import slugify
 
 from survey.models import Answer, Category, Question, Response, Survey
 from survey.signals import survey_completed
-from survey.widgets import ImageSelectWidget
+from survey.widgets import ImageSelectWidget, NativeDateTimeInput, NativeTimeInput
 
 LOGGER = logging.getLogger(__name__)
 
@@ -22,6 +23,9 @@ class ResponseForm(models.ModelForm):
         Question.INTEGER: forms.IntegerField,
         Question.FLOAT: forms.FloatField,
         Question.DATE: forms.DateField,
+        Question.LIKERT_5: forms.ChoiceField,
+        Question.TIME: forms.TimeField,
+        Question.DATETIME: forms.DateTimeField,
     }
 
     WIDGETS = {
@@ -31,6 +35,9 @@ class ResponseForm(models.ModelForm):
         Question.SELECT: forms.Select,
         Question.SELECT_IMAGE: ImageSelectWidget,
         Question.SELECT_MULTIPLE: forms.CheckboxSelectMultiple,
+        Question.LIKERT_5: forms.RadioSelect,
+        Question.TIME: NativeTimeInput,
+        Question.DATETIME: NativeDateTimeInput,
     }
 
     class Meta:
@@ -182,6 +189,14 @@ class ResponseForm(models.ModelForm):
             # Initialize the field field from a POST request, if any.
             # Replace values from the database
             initial = data.get(f"question_{question.pk}")
+        if question.type in (Question.TIME, Question.DATETIME) and not data and isinstance(initial, str) and initial:
+            try:
+                if question.type == Question.TIME:
+                    initial = datetime.time.fromisoformat(initial)
+                else:
+                    initial = datetime.datetime.fromisoformat(initial)
+            except ValueError:
+                pass
         return initial
 
     def get_question_widget(self, question):
@@ -201,7 +216,15 @@ class ResponseForm(models.ModelForm):
         :param Question question: The question
         :rtype: List of String or None"""
         qchoices = None
-        if question.type not in [Question.TEXT, Question.SHORT_TEXT, Question.INTEGER, Question.FLOAT, Question.DATE]:
+        if question.type not in [
+            Question.TEXT,
+            Question.SHORT_TEXT,
+            Question.INTEGER,
+            Question.FLOAT,
+            Question.DATE,
+            Question.TIME,
+            Question.DATETIME,
+        ]:
             qchoices = question.get_choices()
             # add an empty option at the top so that the user has to explicitly
             # select one of the options
@@ -242,8 +265,18 @@ class ResponseForm(models.ModelForm):
 
         if question.type == Question.DATE:
             field.widget.attrs["class"] = "date"
+        field.widget.attrs["question_type"] = question.type
         # logging.debug("Field for %s : %s", question, field.__dict__)
         self.fields[f"question_{question.pk}"] = field
+
+    def clean(self):
+        cleaned_data = super().clean()
+        for field_name, field in self.fields.items():
+            if isinstance(field, (forms.TimeField, forms.DateTimeField)):
+                value = cleaned_data.get(field_name)
+                if hasattr(value, "isoformat"):
+                    cleaned_data[field_name] = value.isoformat()
+        return cleaned_data
 
     def has_next_step(self):
         if not self.survey.is_all_in_one_page():

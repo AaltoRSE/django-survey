@@ -40,6 +40,9 @@ class SortAnswer:
     ALPHANUMERIC = "alphanumeric"
 
 
+LIKERT_5_LABELS = ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"]
+
+
 class Question(models.Model):
     TEXT = "text"
     SHORT_TEXT = "short-text"
@@ -50,6 +53,9 @@ class Question(models.Model):
     INTEGER = "integer"
     FLOAT = "float"
     DATE = "date"
+    LIKERT_5 = "likert-5"
+    TIME = "time"
+    DATETIME = "datetime"
 
     QUESTION_TYPES = (
         (TEXT, _("text (multiple line)")),
@@ -61,6 +67,9 @@ class Question(models.Model):
         (INTEGER, _("integer")),
         (FLOAT, _("float")),
         (DATE, _("date")),
+        (LIKERT_5, _("5-point likert")),
+        (TIME, _("time")),
+        (DATETIME, _("date and time")),
     )
 
     text = models.TextField(_("Text"))
@@ -85,6 +94,8 @@ class Question(models.Model):
 
     def get_clean_choices(self):
         """Return split and stripped list of choices with no null values."""
+        if self.type == Question.LIKERT_5:
+            return list(LIKERT_5_LABELS)
         if self.choices is None:
             return []
         choices_list = []

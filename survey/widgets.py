@@ -21,3 +21,17 @@ class ImageSelectWidget(forms.widgets.Widget):
         context = {"name": name, "choices": choices}
         html = render_to_string(self.template_name, context)
         return html
+
+
+class NativeTimeInput(forms.TimeInput):
+    input_type = "time"
+
+
+class NativeDateTimeInput(forms.DateTimeInput):
+    input_type = "datetime-local"
+
+    def __init__(self, attrs=None, format=None):
+        # DateTimeBaseInput.__init__ does `self.format = format or None`,
+        # so the datetime-local value format must be defaulted here, not
+        # as a class attribute.
+        super().__init__(attrs, format or "%Y-%m-%dT%H:%M")

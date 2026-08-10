@@ -25,6 +25,9 @@ class BaseModelTest(BaseTest):
             [Question.INTEGER, 42, None],
             [Question.SELECT_MULTIPLE, "[u'2', u'4']", "2, 4, 6"],
             [Question.FLOAT, 28.5, None],
+            [Question.LIKERT_5, "Agree", None],
+            [Question.TIME, "14:30:00", None],
+            [Question.DATETIME, "2026-08-10T14:30:00+00:00", None],
         ]
         for i, data in enumerate(self.data):
             qtype, answer_body, answer_choices = data
