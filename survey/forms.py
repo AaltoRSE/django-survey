@@ -8,7 +8,8 @@ from django.forms import models
 from django.urls import reverse
 from django.utils.text import slugify
 
-from survey.models import Answer, Category, Question, Response, Survey
+from survey.conditions import evaluate
+from survey.models import Answer, Category, Question, QuestionCondition, Response, Survey
 from survey.signals import survey_completed
 from survey.widgets import ImageSelectWidget, NativeDateTimeInput, NativeTimeInput
 
@@ -46,7 +47,7 @@ class ResponseForm(models.ModelForm):
         model = Response
         fields = ()
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, session_data=None, **kwargs):
         """Expects a survey object to be passed in initially"""
         self.survey = kwargs.pop("survey")
         self.user = kwargs.pop("user")
@@ -55,10 +56,27 @@ class ResponseForm(models.ModelForm):
         except KeyError:
             self.step = None
 
+        # Answers from earlier steps of a multi-step survey, keyed by
+        # "question_<pk>". Needed to evaluate conditions whose parent
+        # question is not part of the current step's fields.
+        self.session_data = session_data or {}
+        self._visibility_cache = {}
+        self.hidden_question_ids = set()
+
+        self._conditions = {
+            condition.question_id: condition
+            for condition in QuestionCondition.objects.filter(question__survey=self.survey).select_related(
+                "depends_on"
+            )
+        }
+
+        all_questions = list(self.survey.questions.all())
+        self._questions_by_id = {question.pk: question for question in all_questions}
+
         self._other_initial = {}
         self._other_questions = {
             question.pk: question
-            for question in self.survey.questions.all()
+            for question in all_questions
             if question.other_option and question.type in (Question.RADIO, Question.SELECT)
         }
         # When the form is rebuilt from session data (multi-step finalize in
@@ -107,6 +125,42 @@ class ResponseForm(models.ModelForm):
                 data[name] = self.OTHER_SENTINEL
                 data[f"{name}_other"] = value
         return data
+
+    def _raw_value(self, question):
+        """Return the raw submitted/stored value for a question, or None."""
+        name = f"question_{question.pk}"
+        if self.data:
+            if question.type == Question.SELECT_MULTIPLE:
+                if hasattr(self.data, "getlist"):
+                    values = self.data.getlist(name)
+                else:
+                    # Plain dict (form rebuilt from session data).
+                    values = self.data.get(name)
+                if values:
+                    return values
+            else:
+                value = self.data.get(name)
+                if value not in (None, ""):
+                    return value
+        if name in self.session_data:
+            return self.session_data[name]
+        return None
+
+    def is_visible(self, question):
+        """Return whether a question should be shown, cascading through its condition chain."""
+        if question.pk in self._visibility_cache:
+            return self._visibility_cache[question.pk]
+        condition = self._conditions.get(question.pk)
+        if condition is None:
+            visible = True
+        else:
+            parent = self._questions_by_id.get(condition.depends_on_id) or condition.depends_on
+            if not self.is_visible(parent):
+                visible = False
+            else:
+                visible = evaluate(condition, self._raw_value(parent))
+        self._visibility_cache[question.pk] = visible
+        return visible
 
     def add_questions(self, data):
         # add a field for each survey question, corresponding to the question
@@ -320,6 +374,33 @@ class ResponseForm(models.ModelForm):
                 other_field.initial = other_initial
             self.fields[f"question_{question.pk}_other"] = other_field
 
+        # The template renders the required-asterisk from this, not from
+        # field.required, which is forced off for conditional questions below.
+        field.show_required = question.required
+
+        condition = self._conditions.get(question.pk)
+        if condition is not None:
+            # Requiredness is re-enforced in clean() once we know the question is visible.
+            field.required = False
+            field.widget.attrs["data-depends-on"] = f"question_{condition.depends_on_id}"
+            field.widget.attrs["data-operator"] = condition.operator
+            if condition.operator == QuestionCondition.OP_IN:
+                slugs = ",".join(slugify(label) for label in condition._clean_choice_labels())
+                field.widget.attrs["data-cond-choices"] = slugs
+            elif condition.number is not None:
+                field.widget.attrs["data-cond-number"] = condition.number
+
+    def _step_question_ids(self):
+        """Return the pks of the questions that are fields on this form instance."""
+        ids = []
+        for name in self.fields:
+            if name.startswith("question_") and not name.endswith("_other"):
+                try:
+                    ids.append(int(name.split("_")[1]))
+                except (IndexError, ValueError):
+                    continue
+        return ids
+
     def clean(self):
         cleaned_data = super().clean()
         for field_name, field in self.fields.items():
@@ -346,18 +427,74 @@ class ResponseForm(models.ModelForm):
             # "question_*" cleaned_data key (parsing the pk as split("_")[1]), so
             # leaving it in would create a duplicate Answer for the same question.
             cleaned_data.pop(other_name, None)
+
+        self.hidden_question_ids = set()
+        for question_id in self._step_question_ids():
+            question = self._questions_by_id.get(question_id)
+            if question is None:
+                continue
+            field_name = f"question_{question_id}"
+            # The "other" companion field created above for other-enabled questions.
+            other_name = f"{field_name}_other"
+
+            if not self.is_visible(question):
+                self.hidden_question_ids.add(question_id)
+                self.errors.pop(field_name, None)
+                self.errors.pop(other_name, None)
+                cleaned_data.pop(field_name, None)
+                cleaned_data.pop(other_name, None)
+                continue
+
+            if (
+                question.pk in self._conditions
+                and question.required
+                and not cleaned_data.get(field_name)
+                and field_name not in self.errors
+            ):
+                self.add_error(field_name, "This field is required.")
         return cleaned_data
 
+    def survey_hidden_question_ids(self):
+        """Return the ids of every survey question currently hidden, not just the
+        ones that happen to be fields on this step's form. Used by the view to
+        purge stale session answers when a step-back changes a parent answer."""
+        return {question.pk for question in self._questions_by_id.values() if not self.is_visible(question)}
+
+    def _questions_for_step(self, step):
+        """Mirror add_questions' step -> question mapping."""
+        if self.survey.display_method == Survey.BY_CATEGORY:
+            if step == len(self.categories):
+                return list(self.qs_with_no_cat)
+            if 0 <= step < len(self.categories):
+                return list(self.survey.questions.filter(category=self.categories[step]))
+            return []
+        all_questions = list(self.survey.questions.all())
+        if 0 <= step < len(all_questions):
+            return [all_questions[step]]
+        return []
+
+    def step_has_visible_questions(self, step):
+        return any(self.is_visible(question) for question in self._questions_for_step(step))
+
     def has_next_step(self):
-        if not self.survey.is_all_in_one_page():
-            if self.step < self.steps_count - 1:
+        if self.survey.is_all_in_one_page():
+            return False
+        step = self.step + 1
+        while step < self.steps_count:
+            if self.step_has_visible_questions(step):
                 return True
+            step += 1
         return False
 
     def next_step_url(self):
-        if self.has_next_step():
-            context = {"id": self.survey.id, "step": self.step + 1}
-            return reverse("survey-detail-step", kwargs=context)
+        if not self.has_next_step():
+            return None
+        step = self.step + 1
+        while step < self.steps_count:
+            if self.step_has_visible_questions(step):
+                return reverse("survey-detail-step", kwargs={"id": self.survey.id, "step": step})
+            step += 1
+        return None
 
     def current_step_url(self):
         return reverse("survey-detail-step", kwargs={"id": self.survey.id, "step": self.step})
@@ -378,6 +515,8 @@ class ResponseForm(models.ModelForm):
         response.save()
         # response "raw" data as dict (for signal)
         data = {"survey_id": response.survey.id, "interview_uuid": response.interview_uuid, "responses": []}
+        for question_id in self.hidden_question_ids:
+            self.cleaned_data.pop(f"question_{question_id}", None)
         # create an answer object for each question and associate it with this
         # response.
         for field_name, field_value in list(self.cleaned_data.items()):
@@ -400,4 +539,7 @@ class ResponseForm(models.ModelForm):
                 answer.response = response
                 answer.save()
         survey_completed.send(sender=Response, instance=response, data=data)
+        if self.hidden_question_ids:
+            # Re-edits may have left stale answers for questions that are now hidden.
+            Answer.objects.filter(response=response, question_id__in=self.hidden_question_ids).delete()
         return response

@@ -11,7 +11,7 @@
         <tr class="{% if form.errors%} danger {% endif %}">
             <td>
 	            {{ form.label|safe }}
-	            {% if form.field.required %}
+	            {% if form.field.show_required|default:form.field.required %}
 	                <span class="glyphicon glyphicon-asterisk" style="color:red"> </span>
 	            {% endif %}
 	            <span class="help-inline" style="color:red">
