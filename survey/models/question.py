@@ -81,6 +81,10 @@ class Question(models.Model):
     survey = models.ForeignKey(Survey, on_delete=models.CASCADE, verbose_name=_("Survey"), related_name="questions")
     type = models.CharField(_("Type"), max_length=200, choices=QUESTION_TYPES, default=TEXT)
     choices = models.TextField(_("Choices"), blank=True, null=True, help_text=CHOICES_HELP_TEXT)
+    other_option = models.BooleanField(
+        _("Add an 'other' free-text option"), default=False, help_text=_("Only available on radio and select questions.")
+    )
+    other_label = models.CharField(_("Label for the 'other' option"), max_length=200, default="Other, please specify")
 
     class Meta:
         verbose_name = _("question")
@@ -91,6 +95,10 @@ class Question(models.Model):
         if self.type in [Question.RADIO, Question.SELECT, Question.SELECT_MULTIPLE]:
             validate_choices(self.choices)
         super().save(*args, **kwargs)
+
+    def clean(self):
+        if self.other_option and self.type not in (Question.RADIO, Question.SELECT):
+            raise ValidationError("The 'other' option is only available on radio/select questions.")
 
     def get_clean_choices(self):
         """Return split and stripped list of choices with no null values."""

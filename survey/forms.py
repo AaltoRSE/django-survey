@@ -16,6 +16,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 class ResponseForm(models.ModelForm):
+    OTHER_SENTINEL = "__other__"
+
     FIELDS = {
         Question.TEXT: forms.CharField,
         Question.SHORT_TEXT: forms.CharField,
@@ -52,6 +54,22 @@ class ResponseForm(models.ModelForm):
             self.step = int(kwargs.pop("step"))
         except KeyError:
             self.step = None
+
+        self._other_initial = {}
+        self._other_questions = {
+            question.pk: question
+            for question in self.survey.questions.all()
+            if question.other_option and question.type in (Question.RADIO, Question.SELECT)
+        }
+        # When the form is rebuilt from session data (multi-step finalize in
+        # SurveyDetail.treat_valid_form), the stored answer for an "other"-enabled
+        # question is the raw free text, which would fail ChoiceField validation.
+        # Map it back to the sentinel plus companion field before binding.
+        if args and isinstance(args[0], dict) and not hasattr(args[0], "getlist"):
+            args = (self._restore_other_sentinels(args[0]),) + args[1:]
+        elif isinstance(kwargs.get("data"), dict) and not hasattr(kwargs["data"], "getlist"):
+            kwargs["data"] = self._restore_other_sentinels(kwargs["data"])
+
         super().__init__(*args, **kwargs)
         self.uuid = uuid.uuid4().hex
 
@@ -73,6 +91,22 @@ class ResponseForm(models.ModelForm):
         if not self.survey.editable_answers and self.response is not None:
             for name in self.fields.keys():
                 self.fields[name].widget.attrs["disabled"] = True
+
+    def _restore_other_sentinels(self, data):
+        """Return a copy of a plain data dict with raw "other" text replaced by
+        the sentinel choice and a companion text entry, so choice validation
+        passes and clean() re-merges the text."""
+        data = dict(data)
+        for question in self._other_questions.values():
+            name = f"question_{question.pk}"
+            value = data.get(name)
+            if not isinstance(value, str) or value in ("", self.OTHER_SENTINEL):
+                continue
+            clean_slugs = {slug for slug, _label in question.get_choices()}
+            if value not in clean_slugs:
+                data[name] = self.OTHER_SENTINEL
+                data[f"{name}_other"] = value
+        return data
 
     def add_questions(self, data):
         # add a field for each survey question, corresponding to the question
@@ -197,6 +231,12 @@ class ResponseForm(models.ModelForm):
                     initial = datetime.datetime.fromisoformat(initial)
             except ValueError:
                 pass
+        if question.pk in self._other_questions and initial not in (None, "", self.OTHER_SENTINEL):
+            clean_slugs = {slug for slug, _label in question.get_choices()}
+            if initial not in clean_slugs:
+                # The stored body is free "other" text, not one of the choice slugs.
+                self._other_initial[question.pk] = initial
+                initial = self.OTHER_SENTINEL
         return initial
 
     def get_question_widget(self, question):
@@ -230,6 +270,8 @@ class ResponseForm(models.ModelForm):
             # select one of the options
             if question.type in [Question.SELECT, Question.SELECT_IMAGE]:
                 qchoices = tuple([("", "-------------")]) + qchoices
+            if question.other_option and qchoices and question.type in (Question.RADIO, Question.SELECT):
+                qchoices = tuple(qchoices) + ((ResponseForm.OTHER_SENTINEL, question.other_label),)
         return qchoices
 
     def get_question_field(self, question, **kwargs):
@@ -269,6 +311,15 @@ class ResponseForm(models.ModelForm):
         # logging.debug("Field for %s : %s", question, field.__dict__)
         self.fields[f"question_{question.pk}"] = field
 
+        if question.pk in self._other_questions:
+            other_field = forms.CharField(required=False, label="")
+            other_field.widget.attrs["data-other-for"] = f"question_{question.pk}"
+            other_field.widget.attrs["category"] = question.category.name if question.category else ""
+            other_initial = self._other_initial.get(question.pk)
+            if other_initial is not None:
+                other_field.initial = other_initial
+            self.fields[f"question_{question.pk}_other"] = other_field
+
     def clean(self):
         cleaned_data = super().clean()
         for field_name, field in self.fields.items():
@@ -276,6 +327,25 @@ class ResponseForm(models.ModelForm):
                 value = cleaned_data.get(field_name)
                 if hasattr(value, "isoformat"):
                     cleaned_data[field_name] = value.isoformat()
+        for question_id, question in self._other_questions.items():
+            field_name = f"question_{question_id}"
+            other_name = f"{field_name}_other"
+            if field_name not in self.fields:
+                continue
+            if cleaned_data.get(field_name) == self.OTHER_SENTINEL:
+                other_text = (cleaned_data.get(other_name) or "").strip()
+                if not other_text:
+                    if question.required:
+                        self.add_error(field_name, "This field is required.")
+                    else:
+                        # Don't store the literal sentinel as the answer.
+                        cleaned_data[field_name] = ""
+                else:
+                    cleaned_data[field_name] = other_text
+            # Always pop the companion field: save() creates an Answer for every
+            # "question_*" cleaned_data key (parsing the pk as split("_")[1]), so
+            # leaving it in would create a duplicate Answer for the same question.
+            cleaned_data.pop(other_name, None)
         return cleaned_data
 
     def has_next_step(self):
