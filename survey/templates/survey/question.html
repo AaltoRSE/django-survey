@@ -20,7 +20,7 @@
                 {% if form.field.widget.input_type == 'select' %}
                 <select name="{{form.name}}"{% if form.field.widget.attrs.disabled %} disabled{% endif %}>
                 {% endif %}
-                {% if form.field.widget.attrs.question_type == 'likert-5' or form.field.widget.attrs.question_type == 'scale-0-10' %}
+                {% if form.field.widget.attrs.question_type == 'likert-5' or form.field.widget.attrs.question_type == 'scale-0-10' or form.field.widget.attrs.question_type == 'scale-minus5-5' %}
                 <div class="likert-row">
                 {% for choice in form %}
                     <label class="likert-option">{{ choice.tag }}<span class="likert-option-label">{{ choice.choice_label }}</span></label>

@@ -60,6 +60,7 @@ class Answer(models.Model):
             Question.SELECT_MULTIPLE,
             Question.LIKERT_5,
             Question.SCALE_0_10,
+            Question.SCALE_M5_5,
         ]:
             choices = question.get_clean_choices()
             self.check_answer_for_select(choices, body)

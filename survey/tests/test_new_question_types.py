@@ -1,3 +1,4 @@
+import re
 import uuid
 
 from django import forms
@@ -338,4 +339,171 @@ class Scale0To10TemplateTests(TestCase):
     def test_every_step_of_the_scale_is_rendered_as_a_radio_input(self):
         html = self._render()
         for value in range(11):
+            self.assertIn(f'value="{value}"', html)
+
+
+class ScaleMinus5To5RegistrationTests(TestCase):
+    def test_scale_minus5_5_is_registered_as_a_question_type_choice(self):
+        choices = Question._meta.get_field("type").choices
+        self.assertIn((Question.SCALE_M5_5, "-5 to 5 scale"), choices)
+
+    def test_scale_question_does_not_require_choices(self):
+        survey = make_survey()
+        question = Question(
+            survey=survey, text="How do you feel about the change?", order=1, required=True,
+            type=Question.SCALE_M5_5, choices="",
+        )
+        question.full_clean()
+        question.save()
+        question.refresh_from_db()
+        self.assertEqual(question.type, Question.SCALE_M5_5)
+        self.assertEqual(question.choices, "")
+
+    def test_scale_labels_run_from_minus_five_to_five(self):
+        survey = make_survey()
+        question = make_question(survey, Question.SCALE_M5_5, order=1, text="Feeling?")
+        self.assertEqual(question.get_clean_choices(), [str(i) for i in range(-5, 6)])
+
+    def test_scale_ignores_any_choices_the_researcher_typed(self):
+        survey = make_survey()
+        question = make_question(survey, Question.SCALE_M5_5, order=1, choices="Bad, Good", text="Feeling?")
+        self.assertEqual(question.get_clean_choices(), [str(i) for i in range(-5, 6)])
+
+    def test_negative_values_keep_their_sign_instead_of_being_slugified(self):
+        """slugify() would strip the leading '-' and collapse '-5' onto '5'."""
+        survey = make_survey()
+        question = make_question(survey, Question.SCALE_M5_5, order=1, text="Feeling?")
+        values = [value for value, _label in question.get_choices()]
+        self.assertEqual(values, [str(i) for i in range(-5, 6)])
+        self.assertEqual(len(set(values)), 11)
+
+
+class ScaleMinus5To5FieldWidgetTests(TestCase):
+    def setUp(self):
+        self.survey = make_survey()
+        self.scale = make_question(
+            self.survey, Question.SCALE_M5_5, order=1, choices="", text="-5 = much worse, 5 = much better"
+        )
+        self.form = ResponseForm(survey=self.survey, user=AnonymousUser(), step=0)
+
+    def test_scale_field_is_choice_field_with_radio_widget(self):
+        field = self.form.fields[f"question_{self.scale.pk}"]
+        self.assertIsInstance(field, forms.ChoiceField)
+        self.assertIsInstance(field.widget, forms.RadioSelect)
+
+    def test_scale_choices_are_minus_five_to_five_as_value_and_label(self):
+        field = self.form.fields[f"question_{self.scale.pk}"]
+        choices = list(field.choices)
+        self.assertEqual(len(choices), 11)
+        self.assertEqual([value for value, _ in choices], [str(i) for i in range(-5, 6)])
+        self.assertEqual([label for _, label in choices], [str(i) for i in range(-5, 6)])
+
+    def test_scale_field_exposes_question_type_in_widget_attrs(self):
+        field = self.form.fields[f"question_{self.scale.pk}"]
+        self.assertEqual(field.widget.attrs["question_type"], Question.SCALE_M5_5)
+
+
+class ScaleMinus5To5PostTests(TestCase):
+    def setUp(self):
+        self.survey = make_survey()
+        self.scale = make_question(self.survey, Question.SCALE_M5_5, order=1, choices="", text="Feeling?")
+
+    def _post(self, value):
+        return ResponseForm(
+            qd({f"question_{self.scale.pk}": value}), survey=self.survey, user=AnonymousUser(), step=0
+        )
+
+    def test_negative_answer_is_stored_with_its_sign(self):
+        form = self._post("-5")
+        self.assertTrue(form.is_valid(), form.errors)
+        response = form.save()
+        self.assertEqual(Answer.objects.get(response=response, question=self.scale).body, "-5")
+
+    def test_zero_is_a_valid_answer(self):
+        form = self._post("0")
+        self.assertTrue(form.is_valid(), form.errors)
+        response = form.save()
+        self.assertEqual(Answer.objects.get(response=response, question=self.scale).body, "0")
+
+    def test_positive_answer_is_stored_as_the_chosen_number(self):
+        form = self._post("5")
+        self.assertTrue(form.is_valid(), form.errors)
+        response = form.save()
+        self.assertEqual(Answer.objects.get(response=response, question=self.scale).body, "5")
+
+    def test_out_of_range_value_is_rejected_by_the_form(self):
+        form = self._post("-6")
+        self.assertFalse(form.is_valid())
+        self.assertIn(f"question_{self.scale.pk}", form.errors)
+
+    def test_required_scale_question_cannot_be_left_blank(self):
+        form = self._post("")
+        self.assertFalse(form.is_valid())
+        self.assertIn(f"question_{self.scale.pk}", form.errors)
+
+
+class ScaleMinus5To5AnswerValidationTests(TestCase):
+    def setUp(self):
+        self.survey = make_survey()
+        self.scale = make_question(self.survey, Question.SCALE_M5_5, order=1, choices="", text="Feeling?")
+        self.response = Response.objects.create(survey=self.survey, interview_uuid=str(uuid.uuid4()))
+
+    def test_answer_inside_the_scale_is_accepted(self):
+        answer = Answer(question=self.scale, response=self.response, body="-3")
+        answer.save()
+        self.assertEqual(Answer.objects.get(pk=answer.pk).body, "-3")
+
+    def test_answer_outside_the_scale_raises_validation_error(self):
+        with self.assertRaises(ValidationError):
+            Answer(question=self.scale, response=self.response, body="6")
+
+    def test_non_numeric_answer_raises_validation_error(self):
+        with self.assertRaises(ValidationError):
+            Answer(question=self.scale, response=self.response, body="Agree")
+
+
+class ScaleMinus5To5RedisplayTests(TestCase):
+    """A stored negative answer must select its own radio again on redisplay."""
+
+    def setUp(self):
+        self.survey = make_survey(need_logged_user=True, editable_answers=True)
+        self.scale = make_question(
+            self.survey, Question.SCALE_M5_5, order=1, choices="", required=False, text="Feeling?"
+        )
+        self.user = User.objects.create_user(username="scale-redisplay", password="testpass")
+        self.response = Response.objects.create(survey=self.survey, user=self.user, interview_uuid=str(uuid.uuid4()))
+        store_answer(self.scale, self.response, "-4")
+
+    def test_stored_negative_answer_is_the_initial_value(self):
+        form = ResponseForm(survey=self.survey, user=self.user, step=0)
+        self.assertEqual(form.fields[f"question_{self.scale.pk}"].initial, "-4")
+
+    def test_only_the_stored_value_is_checked_in_the_rendered_html(self):
+        html = str(ResponseForm(survey=self.survey, user=self.user, step=0))
+        checked = re.findall(r'<input[^>]*\bchecked\b[^>]*>', html)
+        self.assertEqual(len(checked), 1)
+        self.assertIn('value="-4"', checked[0])
+
+
+class ScaleMinus5To5TemplateTests(TestCase):
+    """The -5 to 5 scale shares the horizontal likert layout in question.html."""
+
+    def setUp(self):
+        self.survey = make_survey()
+        self.scale = make_question(self.survey, Question.SCALE_M5_5, order=1, choices="", text="Feeling?")
+        self.form = ResponseForm(survey=self.survey, user=AnonymousUser(), step=0)
+
+    def _render(self):
+        return render_to_string(
+            "survey/question.html", {"response_form": self.form, "category": {"name": "No category"}}
+        )
+
+    def test_scale_question_is_rendered_with_the_horizontal_scale_layout(self):
+        html = self._render()
+        self.assertIn('class="likert-row"', html)
+        self.assertEqual(html.count('class="likert-option"'), 11)
+
+    def test_every_step_of_the_scale_is_rendered_as_a_radio_input(self):
+        html = self._render()
+        for value in range(-5, 6):
             self.assertIn(f'value="{value}"', html)

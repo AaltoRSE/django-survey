@@ -42,6 +42,7 @@ class SortAnswer:
 
 LIKERT_5_LABELS = ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"]
 SCALE_0_10_LABELS = [str(i) for i in range(11)]
+SCALE_M5_5_LABELS = [str(i) for i in range(-5, 6)]
 
 
 class Question(models.Model):
@@ -56,8 +57,13 @@ class Question(models.Model):
     DATE = "date"
     LIKERT_5 = "likert-5"
     SCALE_0_10 = "scale-0-10"
+    SCALE_M5_5 = "scale-minus5-5"
     TIME = "time"
     DATETIME = "datetime"
+
+    # Scales whose labels are numbers: the answer is stored as the number itself,
+    # not as a slug (see get_choices).
+    NUMERIC_SCALE_TYPES = (SCALE_0_10, SCALE_M5_5)
 
     QUESTION_TYPES = (
         (TEXT, _("text (multiple line)")),
@@ -71,6 +77,7 @@ class Question(models.Model):
         (DATE, _("date")),
         (LIKERT_5, _("5-point likert")),
         (SCALE_0_10, _("0-10 scale")),
+        (SCALE_M5_5, _("-5 to 5 scale")),
         (TIME, _("time")),
         (DATETIME, _("date and time")),
     )
@@ -109,6 +116,8 @@ class Question(models.Model):
             return list(LIKERT_5_LABELS)
         if self.type == Question.SCALE_0_10:
             return list(SCALE_0_10_LABELS)
+        if self.type == Question.SCALE_M5_5:
+            return list(SCALE_M5_5_LABELS)
         if self.choices is None:
             return []
         choices_list = []
@@ -388,7 +397,13 @@ class Question(models.Model):
         """
         choices_list = []
         for choice in self.get_clean_choices():
-            choices_list.append((slugify(choice, allow_unicode=True), choice))
+            if self.type in Question.NUMERIC_SCALE_TYPES:
+                # slugify() strips a leading '-', which would collapse '-5' and
+                # '5' into the same value. Numeric scales keep the number as is.
+                value = choice
+            else:
+                value = slugify(choice, allow_unicode=True)
+            choices_list.append((value, choice))
         choices_tuple = tuple(choices_list)
         return choices_tuple
 
