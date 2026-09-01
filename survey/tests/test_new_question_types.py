@@ -2,7 +2,9 @@ import uuid
 
 from django import forms
 from django.contrib.auth.models import AnonymousUser, User
+from django.core.exceptions import ValidationError
 from django.http import QueryDict
+from django.template.loader import render_to_string
 from django.test import TestCase
 
 from survey.forms import ResponseForm
@@ -206,3 +208,134 @@ class InvalidDatetimePostTests(TestCase):
         form = ResponseForm(self._data(), survey=self.survey, user=AnonymousUser(), step=0)
         form.is_valid()
         self.assertIn("not-a-date", str(form))
+
+
+class Scale0To10RegistrationTests(TestCase):
+    def test_scale_0_10_is_registered_as_a_question_type_choice(self):
+        choices = Question._meta.get_field("type").choices
+        self.assertIn((Question.SCALE_0_10, "0-10 scale"), choices)
+
+    def test_scale_question_does_not_require_choices(self):
+        survey = make_survey()
+        question = Question(
+            survey=survey, text="How likely are you to recommend us?", order=1, required=True,
+            type=Question.SCALE_0_10, choices="",
+        )
+        question.full_clean()
+        question.save()
+        question.refresh_from_db()
+        self.assertEqual(question.type, Question.SCALE_0_10)
+        self.assertEqual(question.choices, "")
+
+    def test_scale_labels_are_the_fixed_eleven_point_range(self):
+        survey = make_survey()
+        question = make_question(survey, Question.SCALE_0_10, order=1, text="Recommend?")
+        self.assertEqual(question.get_clean_choices(), [str(i) for i in range(11)])
+
+    def test_scale_ignores_any_choices_the_researcher_typed(self):
+        survey = make_survey()
+        question = make_question(survey, Question.SCALE_0_10, order=1, choices="Low, High", text="Recommend?")
+        self.assertEqual(question.get_clean_choices(), [str(i) for i in range(11)])
+
+
+class Scale0To10FieldWidgetTests(TestCase):
+    def setUp(self):
+        self.survey = make_survey()
+        self.scale = make_question(
+            self.survey, Question.SCALE_0_10, order=1, choices="", text="0 = not at all, 10 = extremely"
+        )
+        self.form = ResponseForm(survey=self.survey, user=AnonymousUser(), step=0)
+
+    def test_scale_field_is_choice_field_with_radio_widget(self):
+        field = self.form.fields[f"question_{self.scale.pk}"]
+        self.assertIsInstance(field, forms.ChoiceField)
+        self.assertIsInstance(field.widget, forms.RadioSelect)
+
+    def test_scale_choices_are_zero_to_ten_as_slug_and_label(self):
+        field = self.form.fields[f"question_{self.scale.pk}"]
+        choices = list(field.choices)
+        self.assertEqual(len(choices), 11)
+        self.assertEqual([value for value, _ in choices], [str(i) for i in range(11)])
+        self.assertEqual([label for _, label in choices], [str(i) for i in range(11)])
+
+    def test_scale_field_exposes_question_type_in_widget_attrs(self):
+        field = self.form.fields[f"question_{self.scale.pk}"]
+        self.assertEqual(field.widget.attrs["question_type"], Question.SCALE_0_10)
+
+
+class Scale0To10PostTests(TestCase):
+    def setUp(self):
+        self.survey = make_survey()
+        self.scale = make_question(self.survey, Question.SCALE_0_10, order=1, choices="", text="Recommend?")
+
+    def test_scale_answer_is_stored_as_the_chosen_number(self):
+        form = ResponseForm(
+            qd({f"question_{self.scale.pk}": "7"}), survey=self.survey, user=AnonymousUser(), step=0
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        response = form.save()
+        self.assertEqual(Answer.objects.get(response=response, question=self.scale).body, "7")
+
+    def test_zero_is_a_valid_answer(self):
+        form = ResponseForm(
+            qd({f"question_{self.scale.pk}": "0"}), survey=self.survey, user=AnonymousUser(), step=0
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        response = form.save()
+        self.assertEqual(Answer.objects.get(response=response, question=self.scale).body, "0")
+
+    def test_out_of_range_value_is_rejected_by_the_form(self):
+        form = ResponseForm(
+            qd({f"question_{self.scale.pk}": "11"}), survey=self.survey, user=AnonymousUser(), step=0
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn(f"question_{self.scale.pk}", form.errors)
+
+    def test_required_scale_question_cannot_be_left_blank(self):
+        form = ResponseForm(qd({f"question_{self.scale.pk}": ""}), survey=self.survey, user=AnonymousUser(), step=0)
+        self.assertFalse(form.is_valid())
+        self.assertIn(f"question_{self.scale.pk}", form.errors)
+
+
+class Scale0To10AnswerValidationTests(TestCase):
+    def setUp(self):
+        self.survey = make_survey()
+        self.scale = make_question(self.survey, Question.SCALE_0_10, order=1, choices="", text="Recommend?")
+        self.response = Response.objects.create(survey=self.survey, interview_uuid=str(uuid.uuid4()))
+
+    def test_answer_inside_the_scale_is_accepted(self):
+        answer = Answer(question=self.scale, response=self.response, body="10")
+        answer.save()
+        self.assertEqual(Answer.objects.get(pk=answer.pk).body, "10")
+
+    def test_answer_outside_the_scale_raises_validation_error(self):
+        with self.assertRaises(ValidationError):
+            Answer(question=self.scale, response=self.response, body="12")
+
+    def test_non_numeric_answer_raises_validation_error(self):
+        with self.assertRaises(ValidationError):
+            Answer(question=self.scale, response=self.response, body="Agree")
+
+
+class Scale0To10TemplateTests(TestCase):
+    """The 0-10 scale shares the horizontal likert layout in question.html."""
+
+    def setUp(self):
+        self.survey = make_survey()
+        self.scale = make_question(self.survey, Question.SCALE_0_10, order=1, choices="", text="Recommend?")
+        self.form = ResponseForm(survey=self.survey, user=AnonymousUser(), step=0)
+
+    def _render(self):
+        return render_to_string(
+            "survey/question.html", {"response_form": self.form, "category": {"name": "No category"}}
+        )
+
+    def test_scale_question_is_rendered_with_the_horizontal_scale_layout(self):
+        html = self._render()
+        self.assertIn('class="likert-row"', html)
+        self.assertEqual(html.count('class="likert-option"'), 11)
+
+    def test_every_step_of_the_scale_is_rendered_as_a_radio_input(self):
+        html = self._render()
+        for value in range(11):
+            self.assertIn(f'value="{value}"', html)
