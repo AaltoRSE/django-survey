@@ -27,8 +27,7 @@ class ResponseForm(models.ModelForm):
         Question.FLOAT: forms.FloatField,
         Question.DATE: forms.DateField,
         Question.LIKERT_5: forms.ChoiceField,
-        Question.SCALE_0_10: forms.ChoiceField,
-        Question.SCALE_M5_5: forms.ChoiceField,
+        Question.INTEGER_SCALE: forms.ChoiceField,
         Question.TIME: forms.TimeField,
         Question.DATETIME: forms.DateTimeField,
     }
@@ -41,8 +40,7 @@ class ResponseForm(models.ModelForm):
         Question.SELECT_IMAGE: ImageSelectWidget,
         Question.SELECT_MULTIPLE: forms.CheckboxSelectMultiple,
         Question.LIKERT_5: forms.RadioSelect,
-        Question.SCALE_0_10: forms.RadioSelect,
-        Question.SCALE_M5_5: forms.RadioSelect,
+        Question.INTEGER_SCALE: forms.RadioSelect,
         Question.TIME: NativeTimeInput,
         Question.DATETIME: NativeDateTimeInput,
     }

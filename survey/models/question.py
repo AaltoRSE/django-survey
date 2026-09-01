@@ -20,6 +20,31 @@ options for this question ."""
 )
 
 
+SCALE_LIMITS_HELP_TEXT = _(
+    """The minimum and maximum are only used by the 'integer scale'
+question type. Name the ends of the scale in the question text
+itself; the options are shown as bare numbers."""
+)
+
+# Ranges offered as ready-made presets when authoring an integer scale.
+SCALE_PRESETS = ((0, 10), (-5, 5), (1, 7))
+# An integer scale renders one radio per step, so the range has to stay sane.
+SCALE_MAX_STEPS = 51
+
+
+def validate_scale_limits(scale_min, scale_max):
+    """Verify that an integer scale has usable limits.
+    :param int scale_min: The lowest step of the scale.
+    :param int scale_max: The highest step of the scale.
+    """
+    if scale_min is None or scale_max is None:
+        raise ValidationError("An integer scale needs both a minimum and a maximum.")
+    if scale_max <= scale_min:
+        raise ValidationError("The scale maximum must be greater than the minimum.")
+    if scale_max - scale_min + 1 > SCALE_MAX_STEPS:
+        raise ValidationError(f"An integer scale can have at most {SCALE_MAX_STEPS} steps.")
+
+
 def validate_choices(choices):
     """Verifies that there is at least two choices in choices
     :param String choices: The string representing the user choices.
@@ -41,8 +66,6 @@ class SortAnswer:
 
 
 LIKERT_5_LABELS = ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"]
-SCALE_0_10_LABELS = [str(i) for i in range(11)]
-SCALE_M5_5_LABELS = [str(i) for i in range(-5, 6)]
 
 
 class Question(models.Model):
@@ -56,14 +79,9 @@ class Question(models.Model):
     FLOAT = "float"
     DATE = "date"
     LIKERT_5 = "likert-5"
-    SCALE_0_10 = "scale-0-10"
-    SCALE_M5_5 = "scale-minus5-5"
+    INTEGER_SCALE = "integer-scale"
     TIME = "time"
     DATETIME = "datetime"
-
-    # Scales whose labels are numbers: the answer is stored as the number itself,
-    # not as a slug (see get_choices).
-    NUMERIC_SCALE_TYPES = (SCALE_0_10, SCALE_M5_5)
 
     QUESTION_TYPES = (
         (TEXT, _("text (multiple line)")),
@@ -76,8 +94,7 @@ class Question(models.Model):
         (FLOAT, _("float")),
         (DATE, _("date")),
         (LIKERT_5, _("5-point likert")),
-        (SCALE_0_10, _("0-10 scale")),
-        (SCALE_M5_5, _("-5 to 5 scale")),
+        (INTEGER_SCALE, _("integer scale")),
         (TIME, _("time")),
         (DATETIME, _("date and time")),
     )
@@ -91,6 +108,10 @@ class Question(models.Model):
     survey = models.ForeignKey(Survey, on_delete=models.CASCADE, verbose_name=_("Survey"), related_name="questions")
     type = models.CharField(_("Type"), max_length=200, choices=QUESTION_TYPES, default=TEXT)
     choices = models.TextField(_("Choices"), blank=True, null=True, help_text=CHOICES_HELP_TEXT)
+    scale_min = models.IntegerField(
+        _("Scale minimum"), blank=True, null=True, help_text=SCALE_LIMITS_HELP_TEXT
+    )
+    scale_max = models.IntegerField(_("Scale maximum"), blank=True, null=True)
     other_option = models.BooleanField(
         _("Add an 'other' free-text option"), default=False, help_text=_("Only available on radio and select questions.")
     )
@@ -109,15 +130,18 @@ class Question(models.Model):
     def clean(self):
         if self.other_option and self.type not in (Question.RADIO, Question.SELECT):
             raise ValidationError("The 'other' option is only available on radio/select questions.")
+        if self.type == Question.INTEGER_SCALE:
+            validate_scale_limits(self.scale_min, self.scale_max)
 
     def get_clean_choices(self):
         """Return split and stripped list of choices with no null values."""
         if self.type == Question.LIKERT_5:
             return list(LIKERT_5_LABELS)
-        if self.type == Question.SCALE_0_10:
-            return list(SCALE_0_10_LABELS)
-        if self.type == Question.SCALE_M5_5:
-            return list(SCALE_M5_5_LABELS)
+        if self.type == Question.INTEGER_SCALE:
+            if self.scale_min is None or self.scale_max is None:
+                # Half-configured question: no steps rather than a crash.
+                return []
+            return [str(step) for step in range(self.scale_min, self.scale_max + 1)]
         if self.choices is None:
             return []
         choices_list = []
@@ -397,9 +421,9 @@ class Question(models.Model):
         """
         choices_list = []
         for choice in self.get_clean_choices():
-            if self.type in Question.NUMERIC_SCALE_TYPES:
+            if self.type == Question.INTEGER_SCALE:
                 # slugify() strips a leading '-', which would collapse '-5' and
-                # '5' into the same value. Numeric scales keep the number as is.
+                # '5' into the same value. Integer scales keep the number as is.
                 value = choice
             else:
                 value = slugify(choice, allow_unicode=True)

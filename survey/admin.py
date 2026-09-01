@@ -5,6 +5,7 @@ from survey.actions import make_published
 from survey.exporter.csv import Survey2Csv
 from survey.exporter.tex import Survey2Tex
 from survey.models import Answer, Category, Question, QuestionCondition, Response, Survey
+from survey.models.question import SCALE_PRESETS
 
 
 class ConditionInline(admin.StackedInline):
@@ -24,6 +25,34 @@ class ConditionInline(admin.StackedInline):
         return formset
 
 
+class ScalePresetForm(forms.ModelForm):
+    """Question form with a ready-made range picker for the integer scale.
+
+    The dropdown is pure UI: admin_scale.js copies the picked range into the
+    minimum/maximum fields, and those fields are what gets saved. clean() never
+    reads the preset."""
+
+    scale_preset = forms.ChoiceField(
+        choices=[("", "Custom")] + [(f"{low}:{high}", f"{low} to {high}") for low, high in SCALE_PRESETS],
+        required=False,
+        label="Scale range",
+        help_text="Fills the minimum and maximum below. Only used by the integer scale.",
+    )
+
+    class Meta:
+        model = Question
+        fields = "__all__"
+
+    class Media:
+        js = ("survey/js/admin_scale.js",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        limits = (self.instance.scale_min, self.instance.scale_max)
+        if limits in SCALE_PRESETS:
+            self.fields["scale_preset"].initial = f"{limits[0]}:{limits[1]}"
+
+
 class QuestionAdmin(admin.ModelAdmin):
     """Attach conditions to a question.
 
@@ -32,6 +61,7 @@ class QuestionAdmin(admin.ModelAdmin):
     option label.
     """
 
+    form = ScalePresetForm
     list_display = ("text", "survey", "order", "type")
     list_filter = ("survey",)
     inlines = [ConditionInline]
@@ -46,7 +76,7 @@ class ParentQuestionChoiceField(forms.ModelChoiceField):
         return f"question {obj.order} – {text}"
 
 
-class QuestionInlineForm(forms.ModelForm):
+class QuestionInlineForm(ScalePresetForm):
     """Question form with a one-row condition editor (question/operator/value),
     flattened from the QuestionCondition one-to-one row so researchers can
     author everything on the Survey page (stock admin cannot nest that inline
@@ -80,12 +110,9 @@ class QuestionInlineForm(forms.ModelForm):
         required=False, label="", widget=forms.TextInput(attrs={"style": "width: 8em"})
     )
 
-    class Meta:
-        model = Question
-        fields = "__all__"
-
     class Media:
         css = {"all": ("survey/css/admin_condition.css",)}
+        js = ("survey/js/admin_scale.js",)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -176,6 +203,7 @@ class QuestionInline(admin.StackedInline):
         "category",
         "type",
         "choices",
+        ("scale_preset", "scale_min", "scale_max"),
         ("condition_question", "condition_operator", "condition_value"),
         "other_option",
     )
