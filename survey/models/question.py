@@ -41,6 +41,7 @@ class SortAnswer:
 
 
 LIKERT_5_LABELS = ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"]
+SCALE_0_10_LABELS = [str(i) for i in range(11)]
 
 
 class Question(models.Model):
@@ -54,6 +55,7 @@ class Question(models.Model):
     FLOAT = "float"
     DATE = "date"
     LIKERT_5 = "likert-5"
+    SCALE_0_10 = "scale-0-10"
     TIME = "time"
     DATETIME = "datetime"
 
@@ -68,6 +70,7 @@ class Question(models.Model):
         (FLOAT, _("float")),
         (DATE, _("date")),
         (LIKERT_5, _("5-point likert")),
+        (SCALE_0_10, _("0-10 scale")),
         (TIME, _("time")),
         (DATETIME, _("date and time")),
     )
@@ -104,6 +107,8 @@ class Question(models.Model):
         """Return split and stripped list of choices with no null values."""
         if self.type == Question.LIKERT_5:
             return list(LIKERT_5_LABELS)
+        if self.type == Question.SCALE_0_10:
+            return list(SCALE_0_10_LABELS)
         if self.choices is None:
             return []
         choices_list = []

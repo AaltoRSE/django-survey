@@ -54,7 +54,13 @@ class Answer(models.Model):
         return values
 
     def check_answer_body(self, question, body):
-        if question.type in [Question.RADIO, Question.SELECT, Question.SELECT_MULTIPLE, Question.LIKERT_5]:
+        if question.type in [
+            Question.RADIO,
+            Question.SELECT,
+            Question.SELECT_MULTIPLE,
+            Question.LIKERT_5,
+            Question.SCALE_0_10,
+        ]:
             choices = question.get_clean_choices()
             self.check_answer_for_select(choices, body)
         if question.type == Question.INTEGER and body and body != "":
