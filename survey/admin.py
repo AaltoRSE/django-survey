@@ -3,6 +3,7 @@ from django.contrib import admin
 from django_ace import AceWidget
 
 from survey.actions import make_published
+from survey.admin_impl.question_order import pinned_question_ids, shift_colliding_questions
 from survey.exporter.csv import Survey2Csv
 from survey.exporter.tex import Survey2Tex
 from survey.models import Answer, Category, CssSnippet, Question, QuestionCondition, Response, Survey
@@ -243,6 +244,9 @@ class SurveyAdmin(admin.ModelAdmin):
                     and not inline_form.cleaned_data.get("DELETE")
                 ):
                     inline_form.save_extensions()
+            # Make a new or renumbered question take its chosen slot: unchanged
+            # questions at that number and above move up by one.
+            shift_colliding_questions(form.instance, pinned_question_ids(formset))
 
 
 class AnswerBaseInline(admin.StackedInline):
