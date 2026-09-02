@@ -212,7 +212,7 @@ class QuestionInline(admin.StackedInline):
         ("scale_preset", "scale_min", "scale_max"),
         ("condition_question", "condition_operator", "condition_value"),
         "other_option",
-        "will_not_answer_option",
+        ("will_not_answer_option", "will_not_answer_label"),
     )
 
     def get_formset(self, request, survey_obj, *args, **kwargs):
