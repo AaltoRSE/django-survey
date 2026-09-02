@@ -443,7 +443,7 @@ class ResponseForm(models.ModelForm):
             other_field.label_class = other_css_classes["label_class"]
             other_field.row_class = other_css_classes["row_class"]
             other_field.option_class = other_css_classes["option_class"]
-        other_field.option_number_class_prefix = other_css_classes["option_number_class_prefix"]
+            other_field.option_number_class_prefix = other_css_classes["option_number_class_prefix"]
             other_field.required_class = other_css_classes["required_class"]
             other_field.errors_class = other_css_classes["errors_class"]
             other_initial = self._other_initial.get(question.pk)
@@ -459,7 +459,7 @@ class ResponseForm(models.ModelForm):
             wna_field.label_class = wna_css_classes["label_class"]
             wna_field.row_class = wna_css_classes["row_class"]
             wna_field.option_class = wna_css_classes["option_class"]
-        wna_field.option_number_class_prefix = wna_css_classes["option_number_class_prefix"]
+            wna_field.option_number_class_prefix = wna_css_classes["option_number_class_prefix"]
             wna_field.required_class = wna_css_classes["required_class"]
             wna_field.errors_class = wna_css_classes["errors_class"]
             if question.pk in self._wna_initial:
