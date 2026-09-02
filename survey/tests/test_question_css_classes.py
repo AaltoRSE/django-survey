@@ -31,6 +31,10 @@ class QuestionCssClassesRenderingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.html = response.content.decode()
 
+    def test_survey_and_questions_containers_have_classes(self):
+        self.assertIn(f'class="survey-container survey-{self.survey.pk}"', self.html)
+        self.assertIn('class="survey-questions-container"', self.html)
+
     def test_generic_classes_present_for_every_question(self):
         self.assertIn("survey-question-label", self.html)
         self.assertIn("survey-question-row", self.html)

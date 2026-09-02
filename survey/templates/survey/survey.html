@@ -23,6 +23,7 @@
 
 
 {% block body %}
+	<div class="survey-container survey-{{survey.pk}}">
 	<h1> {{survey.name}} </h1>
 	<div class="survey-description"> {{survey.description|safe}} </div>
 	<div>
@@ -32,6 +33,7 @@
 		<form action="{% url 'survey-detail' id=survey.id %}" method="post">
 	{% endif %}
 	    {% csrf_token %}
+        <div class="survey-questions-container">
         {% for category in categories %}
             <h3> {{category}} </h3>
             <p> {{category.description|default_if_none:""}} </p>
@@ -58,6 +60,7 @@
             <h3> {% trans "Questions" %} </h3>
             {% include "survey/question.html" %}
         {% endfor %}
+        </div>
 
         <br>
 		{% if survey.editable_answers or response_form.response is None %}
@@ -76,4 +79,5 @@
 				{% endif %}
 		{% endif %}
 	</form></div>
+	</div>
 {% endblock %}
