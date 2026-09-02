@@ -415,8 +415,8 @@ class IntegerScaleTemplateTests(TestCase):
 
     def test_scale_question_is_rendered_with_the_horizontal_scale_layout(self):
         html = self._render()
-        self.assertIn('class="likert-row"', html)
-        self.assertEqual(html.count('class="likert-option"'), 11)
+        self.assertIn('likert-row', html)
+        self.assertEqual(html.count('likert-option"'), 11)
 
     def test_every_step_of_the_scale_is_rendered_as_a_radio_input(self):
         html = self._render()

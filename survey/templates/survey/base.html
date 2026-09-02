@@ -1,4 +1,5 @@
 {% load static %}
+{% load survey_extras %}
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -9,6 +10,7 @@
     <link href="{% static 'survey/css/bootstrap.min.css'%}" rel="stylesheet" type="text/css"/>
 	  <link rel="stylesheet" type="text/css" href="{% static 'survey/css/custom.css' %}" />
     {% block extracss %}{% endblock %}
+    {% survey_custom_css %}
   </head>
   <body>
     <div class="container" id="wrap">

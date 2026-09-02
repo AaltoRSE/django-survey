@@ -4,7 +4,7 @@ from django.contrib import admin
 from survey.actions import make_published
 from survey.exporter.csv import Survey2Csv
 from survey.exporter.tex import Survey2Tex
-from survey.models import Answer, Category, Question, QuestionCondition, Response, Survey
+from survey.models import Answer, Category, CssSnippet, Question, QuestionCondition, Response, Survey
 from survey.models.question import SCALE_PRESETS
 
 
@@ -260,7 +260,12 @@ class ResponseAdmin(admin.ModelAdmin):
     readonly_fields = ("survey", "created", "updated", "interview_uuid", "user")
 
 
+class CssSnippetAdmin(admin.ModelAdmin):
+    list_display = ("name",)
+
+
 # admin.site.register(Question, QuestionInline)
 # admin.site.register(Category, CategoryInline)
 admin.site.register(Survey, SurveyAdmin)
 admin.site.register(Response, ResponseAdmin)
+admin.site.register(CssSnippet, CssSnippetAdmin)

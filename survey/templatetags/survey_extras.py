@@ -1,4 +1,8 @@
 from django import template
+from django.utils.html import format_html
+from django.utils.safestring import mark_safe
+
+from survey.models import CssSnippet
 
 register = template.Library()
 
@@ -30,3 +34,13 @@ class CounterNode(template.Node):
 @register.tag
 def counter(parser, token):
     return CounterNode()
+
+
+@register.simple_tag
+def survey_custom_css():
+    """One <style> block per CssSnippet row, in name order."""
+    blocks = [
+        format_html('<style data-css-snippet="{}">{}</style>', snippet.name, mark_safe(snippet.css))
+        for snippet in CssSnippet.objects.order_by("name")
+    ]
+    return mark_safe("".join(blocks))
