@@ -44,6 +44,12 @@ class QuestionCssClassesRenderingTests(TestCase):
         self.assertIn(f"question-{self.radio_q.pk}-row", self.html)
         self.assertIn(f"question-{self.radio_q.pk}-label", self.html)
 
+    def test_each_option_has_a_numbered_pk_specific_class(self):
+        self.assertIn(f"question-{self.radio_q.pk}-option-1", self.html)
+        self.assertIn(f"question-{self.radio_q.pk}-option-2", self.html)
+        self.assertNotIn(f"question-{self.radio_q.pk}-option-3", self.html)
+        self.assertIn(f"question-{self.scale_q.pk}-option-11", self.html)
+
     def test_integer_scale_question_has_type_prefixed_and_pk_specific_classes(self):
         self.assertIn("integer-scale-question-row", self.html)
         self.assertIn("integer-scale-question-option", self.html)

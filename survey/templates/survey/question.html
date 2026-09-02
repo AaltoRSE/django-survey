@@ -23,7 +23,7 @@
                 {% if form.field.as_choice_list %}
                 <div class="{{ form.field.row_class }}{% if form.field.horizontal %} likert-row{% endif %}">
                 {% for choice in form %}
-                    <label class="{{ form.field.option_class }}{% if form.field.horizontal %} likert-option{% endif %}">
+                    <label class="{{ form.field.option_class }} {{ form.field.option_number_class_prefix }}{{ forloop.counter }}{% if form.field.horizontal %} likert-option{% endif %}">
                         {{ choice.tag }}
                         <span class="survey-question-option-label{% if form.field.horizontal %} likert-option-label{% endif %}">{{ choice.choice_label }}</span>
                     </label>
