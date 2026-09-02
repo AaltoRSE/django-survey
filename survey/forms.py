@@ -16,6 +16,27 @@ from survey.widgets import ImageSelectWidget, NativeDateTimeInput, NativeTimeInp
 LOGGER = logging.getLogger(__name__)
 
 
+def question_css_classes(qtype, pk, suffix=""):
+    """Build the three-tier (generic, type-specific, per-question) CSS class
+    strings used by question.html to style a question's label, answers
+    container ("row"), and individual options.
+
+    :param str qtype: the raw question type (e.g. "radio") or a pseudo-type
+        for companion fields (e.g. "wna", "other").
+    :param int pk: the parent question's pk.
+    :param str suffix: an optional segment inserted into the pk-specific
+        classes for companion fields, e.g. "wna" -> "question-<pk>-wna-row".
+    :rtype: dict with "label_class", "row_class", "option_class", "tr_class" keys.
+    """
+    pk_segment = f"{pk}-{suffix}" if suffix else f"{pk}"
+    return {
+        "label_class": f"survey-question-label {qtype}-question-label question-{pk_segment}-label",
+        "row_class": f"survey-question-row {qtype}-question-row question-{pk_segment}-row",
+        "option_class": f"survey-question-option {qtype}-question-option question-{pk_segment}-option",
+        "tr_class": f"survey-question {qtype}-question question-{pk_segment}",
+    }
+
+
 class ResponseForm(models.ModelForm):
     OTHER_SENTINEL = "__other__"
     WILL_NOT_ANSWER_SENTINEL = "__will-not-answer__"
@@ -390,6 +411,18 @@ class ResponseForm(models.ModelForm):
         if question.type == Question.DATE:
             field.widget.attrs["class"] = "date"
         field.widget.attrs["question_type"] = question.type
+        css_classes = question_css_classes(question.type, question.pk)
+        field.label_class = css_classes["label_class"]
+        field.row_class = css_classes["row_class"]
+        field.option_class = css_classes["option_class"]
+        field.tr_class = css_classes["tr_class"]
+        field.as_choice_list = question.type in (
+            Question.RADIO,
+            Question.SELECT_MULTIPLE,
+            Question.LIKERT_5,
+            Question.INTEGER_SCALE,
+        )
+        field.horizontal = question.type in (Question.LIKERT_5, Question.INTEGER_SCALE)
         # logging.debug("Field for %s : %s", question, field.__dict__)
         self.fields[f"question_{question.pk}"] = field
 
@@ -397,6 +430,10 @@ class ResponseForm(models.ModelForm):
             other_field = forms.CharField(required=False, label="")
             other_field.widget.attrs["data-other-for"] = f"question_{question.pk}"
             other_field.widget.attrs["category"] = question.category.name if question.category else ""
+            other_css_classes = question_css_classes("other", question.pk, suffix="other")
+            other_field.label_class = other_css_classes["label_class"]
+            other_field.row_class = other_css_classes["row_class"]
+            other_field.option_class = other_css_classes["option_class"]
             other_initial = self._other_initial.get(question.pk)
             if other_initial is not None:
                 other_field.initial = other_initial
@@ -406,6 +443,10 @@ class ResponseForm(models.ModelForm):
             wna_field = forms.BooleanField(required=False, label=question.will_not_answer_label)
             wna_field.widget.attrs["data-wna-for"] = f"question_{question.pk}"
             wna_field.widget.attrs["category"] = question.category.name if question.category else ""
+            wna_css_classes = question_css_classes("wna", question.pk, suffix="wna")
+            wna_field.label_class = wna_css_classes["label_class"]
+            wna_field.row_class = wna_css_classes["row_class"]
+            wna_field.option_class = wna_css_classes["option_class"]
             if question.pk in self._wna_initial:
                 wna_field.initial = True
             self.fields[f"question_{question.pk}_wna"] = wna_field
