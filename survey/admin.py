@@ -38,7 +38,7 @@ class ScalePresetForm(forms.ModelForm):
         choices=[("", "Custom")] + [(f"{low}:{high}", f"{low} to {high}") for low, high in SCALE_PRESETS],
         required=False,
         label="Scale range",
-        help_text="Fills the minimum and maximum below. Only used by the integer scale.",
+        help_text="Fills in minimum and maximum",
     )
 
     class Meta:
