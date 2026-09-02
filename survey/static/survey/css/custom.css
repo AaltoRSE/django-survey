@@ -3,6 +3,12 @@
   font-weight: normal;
   cursor: pointer;
 }
+.survey-question-required {
+  color: red;
+}
+.survey-question-errors {
+  color: red;
+}
 .likert-row {
   display: flex;
   gap: 0.25em;

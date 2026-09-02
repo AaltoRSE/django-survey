@@ -1,0 +1,81 @@
+/* Example: card-style survey questions.
+ *
+ * Paste this into a CSS snippet (admin > Css snippets) or adapt it to taste.
+ * Each question becomes a rounded card on the gray page background, with the
+ * question text as a header separated from the options by a line.
+ *
+ * It relies on the survey question class scheme:
+ *   .survey-question           the question's table row
+ *   .survey-question-label     the question text
+ *   .survey-question-row       the container holding the options
+ *   .survey-question-option    one option
+ * plus <type>-question-* and question-<pk>-* variants for narrower targeting.
+ */
+
+/* Questions are table rows; turn each into a free-standing block ("card"). */
+tr.survey-question {
+    display: block;
+    margin: 0 0 1.25em;
+    background: #fdfdfd;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+tr.survey-question > td {
+    display: block;
+    padding: 1em 1.25em;
+    border-top: none; /* bootstrap .table td separator */
+}
+
+/* Question text as a card header. The required asterisk and error message
+ * stay on the header row; the line sits above the options container so it
+ * runs under all of them. */
+.survey-question-label {
+    font-size: 1.1em;
+    font-weight: bold;
+}
+.survey-question-row {
+    border-top: 1px solid #e5e5e5;
+    margin-top: 0.6em;
+    padding-top: 0.8em;
+}
+
+/* The "will not answer" / "other" companion fields render as their own table
+ * rows right after their question; fuse them onto the bottom of its card.
+ * (Uses :has(); on browsers without it they fall back to plain rows.) */
+tr:has(> td > .wna-question-row),
+tr:has(> td > .other-question-row) {
+    display: block;
+    margin: -1.25em 0 1.25em; /* pull up against the card above */
+    background: #fdfdfd;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+tr:has(> td > .wna-question-row) > td,
+tr:has(> td > .other-question-row) > td {
+    display: block;
+    padding: 0 1.25em 1em;
+    border-top: none;
+}
+tr.survey-question:has(+ tr > td > .wna-question-row),
+tr.survey-question:has(+ tr > td > .other-question-row) {
+    margin-bottom: 0;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+}
+.wna-question-row,
+.other-question-row {
+    border-top: none;
+    margin-top: 0;
+    padding-top: 0;
+}
+
+/* Neutralize the bootstrap table chrome behind the cards. */
+.table.table-hover {
+    background: transparent;
+}
+.table-hover > tbody > tr:hover {
+    background: transparent;
+}

@@ -44,7 +44,7 @@ class ScalePresetForm(forms.ModelForm):
         fields = "__all__"
 
     class Media:
-        js = ("survey/js/admin_scale.js",)
+        js = ("survey/js/admin_scale.js", "survey/js/admin_question_type.js")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -112,7 +112,7 @@ class QuestionInlineForm(ScalePresetForm):
 
     class Media:
         css = {"all": ("survey/css/admin_condition.css",)}
-        js = ("survey/js/admin_scale.js",)
+        js = ("survey/js/admin_scale.js", "survey/js/admin_question_type.js")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

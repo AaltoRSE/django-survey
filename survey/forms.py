@@ -26,7 +26,8 @@ def question_css_classes(qtype, pk, suffix=""):
     :param int pk: the parent question's pk.
     :param str suffix: an optional segment inserted into the pk-specific
         classes for companion fields, e.g. "wna" -> "question-<pk>-wna-row".
-    :rtype: dict with "label_class", "row_class", "option_class", "tr_class" keys.
+    :rtype: dict with "label_class", "row_class", "option_class", "tr_class",
+        "required_class", "errors_class" keys.
     """
     pk_segment = f"{pk}-{suffix}" if suffix else f"{pk}"
     return {
@@ -34,6 +35,8 @@ def question_css_classes(qtype, pk, suffix=""):
         "row_class": f"survey-question-row {qtype}-question-row question-{pk_segment}-row",
         "option_class": f"survey-question-option {qtype}-question-option question-{pk_segment}-option",
         "tr_class": f"survey-question {qtype}-question question-{pk_segment}",
+        "required_class": f"survey-question-required {qtype}-question-required question-{pk_segment}-required",
+        "errors_class": f"survey-question-errors {qtype}-question-errors question-{pk_segment}-errors",
     }
 
 
@@ -416,6 +419,8 @@ class ResponseForm(models.ModelForm):
         field.row_class = css_classes["row_class"]
         field.option_class = css_classes["option_class"]
         field.tr_class = css_classes["tr_class"]
+        field.required_class = css_classes["required_class"]
+        field.errors_class = css_classes["errors_class"]
         field.as_choice_list = question.type in (
             Question.RADIO,
             Question.SELECT_MULTIPLE,
@@ -434,6 +439,8 @@ class ResponseForm(models.ModelForm):
             other_field.label_class = other_css_classes["label_class"]
             other_field.row_class = other_css_classes["row_class"]
             other_field.option_class = other_css_classes["option_class"]
+            other_field.required_class = other_css_classes["required_class"]
+            other_field.errors_class = other_css_classes["errors_class"]
             other_initial = self._other_initial.get(question.pk)
             if other_initial is not None:
                 other_field.initial = other_initial
@@ -447,6 +454,8 @@ class ResponseForm(models.ModelForm):
             wna_field.label_class = wna_css_classes["label_class"]
             wna_field.row_class = wna_css_classes["row_class"]
             wna_field.option_class = wna_css_classes["option_class"]
+            wna_field.required_class = wna_css_classes["required_class"]
+            wna_field.errors_class = wna_css_classes["errors_class"]
             if question.pk in self._wna_initial:
                 wna_field.initial = True
             self.fields[f"question_{question.pk}_wna"] = wna_field

@@ -101,3 +101,7 @@ class TestScalePresetForm(TestCase):
         self.assertIn("survey/js/admin_scale.js", str(ScalePresetForm().media))
         self.assertIn("survey/js/admin_scale.js", str(QuestionInlineForm().media))
         self.assertIn("survey/css/admin_condition.css", str(QuestionInlineForm().media))
+
+    def test_the_question_type_javascript_is_loaded_by_both_question_forms(self):
+        self.assertIn("survey/js/admin_question_type.js", str(ScalePresetForm().media))
+        self.assertIn("survey/js/admin_question_type.js", str(QuestionInlineForm().media))

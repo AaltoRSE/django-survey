@@ -12,9 +12,9 @@
             <td>
 	            <span class="{{ form.field.label_class }}">{{ form.label|safe }}</span>
 	            {% if form.field.show_required|default:form.field.required %}
-	                <span class="glyphicon glyphicon-asterisk" style="color:red"> </span>
+	                <span class="glyphicon glyphicon-asterisk {{ form.field.required_class }}"> </span>
 	            {% endif %}
-	            <span class="help-inline" style="color:red">
+	            <span class="help-inline {{ form.field.errors_class }}">
 	                <strong> {% for error in  form.errors %}{{ error }}{% endfor %} </strong>
 	            </span> <br>
                 {% if form.field.widget.input_type == 'select' %}
