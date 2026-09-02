@@ -8,9 +8,9 @@
     <tbody>
 {% for form in response_form %}
 	{% if form.field.widget.attrs.category == category.name or category.name == 'No category' and not form.field.widget.attrs.category %}
-        <tr class="{% if form.errors%} danger {% endif %}">
+        <tr class="{{ form.field.tr_class }}{% if form.errors%} danger {% endif %}">
             <td>
-	            {{ form.label|safe }}
+	            <span class="{{ form.field.label_class }}">{{ form.label|safe }}</span>
 	            {% if form.field.show_required|default:form.field.required %}
 	                <span class="glyphicon glyphicon-asterisk" style="color:red"> </span>
 	            {% endif %}
@@ -20,16 +20,21 @@
                 {% if form.field.widget.input_type == 'select' %}
                 <select name="{{form.name}}"{% if form.field.widget.attrs.disabled %} disabled{% endif %}>
                 {% endif %}
-                {% if form.field.widget.attrs.question_type == 'likert-5' or form.field.widget.attrs.question_type == 'integer-scale' %}
-                <div class="likert-row">
+                {% if form.field.as_choice_list %}
+                <div class="{{ form.field.row_class }}{% if form.field.horizontal %} likert-row{% endif %}">
                 {% for choice in form %}
-                    <label class="likert-option">{{ choice.tag }}<span class="likert-option-label">{{ choice.choice_label }}</span></label>
+                    <label class="{{ form.field.option_class }}{% if form.field.horizontal %} likert-option{% endif %}">
+                        {{ choice.tag }}
+                        <span class="survey-question-option-label{% if form.field.horizontal %} likert-option-label{% endif %}">{{ choice.choice_label }}</span>
+                    </label>
                 {% endfor %}
                 </div>
                 {% else %}
+                <div class="{{ form.field.row_class }}">
 	            {% for field in form %}
 		    {{ field }} <br>
                 {% endfor%}
+                </div>
                 {% endif %}
                 {% if form.field.widget.input_type == 'select' %}
                 </select>

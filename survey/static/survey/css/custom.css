@@ -1,3 +1,8 @@
+.survey-question-option {
+  display: block;
+  font-weight: normal;
+  cursor: pointer;
+}
 .likert-row {
   display: flex;
   gap: 0.25em;
