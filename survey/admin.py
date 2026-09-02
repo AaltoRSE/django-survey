@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib import admin
+from django_ace import AceWidget
 
 from survey.actions import make_published
 from survey.exporter.csv import Survey2Csv
@@ -260,7 +261,17 @@ class ResponseAdmin(admin.ModelAdmin):
     readonly_fields = ("survey", "created", "updated", "interview_uuid", "user")
 
 
+class CssSnippetForm(forms.ModelForm):
+    class Meta:
+        model = CssSnippet
+        fields = "__all__"
+        widgets = {
+            "css": AceWidget(mode="css", theme="monokai", width="100%", height="300px"),
+        }
+
+
 class CssSnippetAdmin(admin.ModelAdmin):
+    form = CssSnippetForm
     list_display = ("name",)
 
 
