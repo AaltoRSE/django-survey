@@ -103,6 +103,7 @@ class SurveyDetail(View):
         for question_id in form.survey_hidden_question_ids():
             request.session[session_key].pop(f"question_{question_id}", None)
             request.session[session_key].pop(f"question_{question_id}_other", None)
+            request.session[session_key].pop(f"question_{question_id}_wna", None)
         request.session.modified = True
 
         next_url = form.next_step_url()

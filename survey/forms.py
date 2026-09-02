@@ -18,6 +18,7 @@ LOGGER = logging.getLogger(__name__)
 
 class ResponseForm(models.ModelForm):
     OTHER_SENTINEL = "__other__"
+    WILL_NOT_ANSWER_SENTINEL = "__will-not-answer__"
 
     FIELDS = {
         Question.TEXT: forms.CharField,
@@ -81,14 +82,20 @@ class ResponseForm(models.ModelForm):
             for question in all_questions
             if question.other_option and question.type in (Question.RADIO, Question.SELECT)
         }
+        self._wna_initial = set()
+        self._wna_questions = {
+            question.pk: question
+            for question in all_questions
+            if question.will_not_answer_option and question.type == Question.INTEGER_SCALE
+        }
         # When the form is rebuilt from session data (multi-step finalize in
         # SurveyDetail.treat_valid_form), the stored answer for an "other"-enabled
         # question is the raw free text, which would fail ChoiceField validation.
         # Map it back to the sentinel plus companion field before binding.
         if args and isinstance(args[0], dict) and not hasattr(args[0], "getlist"):
-            args = (self._restore_other_sentinels(args[0]),) + args[1:]
+            args = (self._restore_wna_sentinels(self._restore_other_sentinels(args[0])),) + args[1:]
         elif isinstance(kwargs.get("data"), dict) and not hasattr(kwargs["data"], "getlist"):
-            kwargs["data"] = self._restore_other_sentinels(kwargs["data"])
+            kwargs["data"] = self._restore_wna_sentinels(self._restore_other_sentinels(kwargs["data"]))
 
         super().__init__(*args, **kwargs)
         self.uuid = uuid.uuid4().hex
@@ -126,6 +133,18 @@ class ResponseForm(models.ModelForm):
             if value not in clean_slugs:
                 data[name] = self.OTHER_SENTINEL
                 data[f"{name}_other"] = value
+        return data
+
+    def _restore_wna_sentinels(self, data):
+        """Return a copy of a plain data dict where a stored "will not answer"
+        sentinel is replaced by the checkbox companion field, so choice
+        validation on the main field passes."""
+        data = dict(data)
+        for question in self._wna_questions.values():
+            name = f"question_{question.pk}"
+            if data.get(name) == self.WILL_NOT_ANSWER_SENTINEL:
+                data.pop(name, None)
+                data[f"{name}_wna"] = True
         return data
 
     def _raw_value(self, question):
@@ -293,6 +312,9 @@ class ResponseForm(models.ModelForm):
                 # The stored body is free "other" text, not one of the choice slugs.
                 self._other_initial[question.pk] = initial
                 initial = self.OTHER_SENTINEL
+        if question.pk in self._wna_questions and initial == self.WILL_NOT_ANSWER_SENTINEL:
+            self._wna_initial.add(question.pk)
+            initial = None
         return initial
 
     def get_question_widget(self, question):
@@ -349,6 +371,10 @@ class ResponseForm(models.ModelForm):
         :param Question question: The question to add.
         :param dict data: The pre-existing values from a post request."""
         kwargs = {"label": question.text, "required": question.required}
+        if question.pk in self._wna_questions:
+            # The checkbox companion field can substitute for an answer; clean()
+            # re-enforces requiredness once it knows whether the box is checked.
+            kwargs["required"] = False
         initial = self.get_question_initial(question, data)
         if initial:
             kwargs["initial"] = initial
@@ -376,6 +402,14 @@ class ResponseForm(models.ModelForm):
                 other_field.initial = other_initial
             self.fields[f"question_{question.pk}_other"] = other_field
 
+        if question.pk in self._wna_questions:
+            wna_field = forms.BooleanField(required=False, label=question.will_not_answer_label)
+            wna_field.widget.attrs["data-wna-for"] = f"question_{question.pk}"
+            wna_field.widget.attrs["category"] = question.category.name if question.category else ""
+            if question.pk in self._wna_initial:
+                wna_field.initial = True
+            self.fields[f"question_{question.pk}_wna"] = wna_field
+
         # The template renders the required-asterisk from this, not from
         # field.required, which is forced off for conditional questions below.
         field.show_required = question.required
@@ -396,7 +430,7 @@ class ResponseForm(models.ModelForm):
         """Return the pks of the questions that are fields on this form instance."""
         ids = []
         for name in self.fields:
-            if name.startswith("question_") and not name.endswith("_other"):
+            if name.startswith("question_") and not name.endswith(("_other", "_wna")):
                 try:
                     ids.append(int(name.split("_")[1]))
                 except (IndexError, ValueError):
@@ -430,21 +464,39 @@ class ResponseForm(models.ModelForm):
             # leaving it in would create a duplicate Answer for the same question.
             cleaned_data.pop(other_name, None)
 
+        for question_id, question in self._wna_questions.items():
+            field_name = f"question_{question_id}"
+            wna_name = f"{field_name}_wna"
+            if field_name not in self.fields:
+                continue
+            if cleaned_data.get(wna_name):
+                # Checkbox wins over any radio value submitted alongside it.
+                cleaned_data[field_name] = self.WILL_NOT_ANSWER_SENTINEL
+            elif question.required and not cleaned_data.get(field_name):
+                self.add_error(field_name, "This field is required.")
+            # Always pop the companion field: save() creates an Answer for every
+            # "question_*" cleaned_data key (parsing the pk as split("_")[1]), so
+            # leaving it in would create a duplicate Answer for the same question.
+            cleaned_data.pop(wna_name, None)
+
         self.hidden_question_ids = set()
         for question_id in self._step_question_ids():
             question = self._questions_by_id.get(question_id)
             if question is None:
                 continue
             field_name = f"question_{question_id}"
-            # The "other" companion field created above for other-enabled questions.
+            # The "other"/"will not answer" companion fields created above.
             other_name = f"{field_name}_other"
+            wna_name = f"{field_name}_wna"
 
             if not self.is_visible(question):
                 self.hidden_question_ids.add(question_id)
                 self.errors.pop(field_name, None)
                 self.errors.pop(other_name, None)
+                self.errors.pop(wna_name, None)
                 cleaned_data.pop(field_name, None)
                 cleaned_data.pop(other_name, None)
+                cleaned_data.pop(wna_name, None)
                 continue
 
             if (

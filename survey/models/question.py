@@ -116,6 +116,12 @@ class Question(models.Model):
         _("Add an 'other' free-text option"), default=False, help_text=_("Only available on radio and select questions.")
     )
     other_label = models.CharField(_("Label for the 'other' option"), max_length=200, default="Other, please specify")
+    will_not_answer_option = models.BooleanField(
+        _("Add a 'will not answer' option"), default=False, help_text=_("Only available on integer scale questions.")
+    )
+    will_not_answer_label = models.CharField(
+        _("Label for the 'will not answer' option"), max_length=200, default="I will not answer"
+    )
 
     class Meta:
         verbose_name = _("question")
@@ -130,6 +136,8 @@ class Question(models.Model):
     def clean(self):
         if self.other_option and self.type not in (Question.RADIO, Question.SELECT):
             raise ValidationError("The 'other' option is only available on radio/select questions.")
+        if self.will_not_answer_option and self.type != Question.INTEGER_SCALE:
+            raise ValidationError("The 'will not answer' option is only available on integer scale questions.")
         if self.type == Question.INTEGER_SCALE:
             validate_scale_limits(self.scale_min, self.scale_max)
 

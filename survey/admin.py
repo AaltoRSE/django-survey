@@ -180,6 +180,10 @@ class QuestionInlineForm(ScalePresetForm):
             self._parsed_condition = self._clean_condition(depends_on)
         if cleaned_data.get("other_option") and cleaned_data.get("type") not in (Question.RADIO, Question.SELECT):
             self.add_error("other_option", 'The "other" option is only supported on radio and dropdown questions.')
+        if cleaned_data.get("will_not_answer_option") and cleaned_data.get("type") != Question.INTEGER_SCALE:
+            self.add_error(
+                "will_not_answer_option", 'The "will not answer" option is only supported on integer scale questions.'
+            )
         return cleaned_data
 
     def save_extensions(self):
@@ -206,6 +210,7 @@ class QuestionInline(admin.StackedInline):
         ("scale_preset", "scale_min", "scale_max"),
         ("condition_question", "condition_operator", "condition_value"),
         "other_option",
+        "will_not_answer_option",
     )
 
     def get_formset(self, request, survey_obj, *args, **kwargs):

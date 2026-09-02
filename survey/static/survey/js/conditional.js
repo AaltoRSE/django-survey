@@ -147,16 +147,34 @@
         }
     }
 
+    function updateWnaFields() {
+        var checkboxes = document.querySelectorAll("[data-wna-for]");
+        for (var i = 0; i < checkboxes.length; i++) {
+            var checkbox = checkboxes[i];
+            var parentName = checkbox.getAttribute("data-wna-for");
+            var inputs = document.getElementsByName(parentName);
+            for (var j = 0; j < inputs.length; j++) {
+                inputs[j].disabled = checkbox.checked;
+                if (checkbox.checked) {
+                    inputs[j].checked = false;
+                }
+            }
+        }
+    }
+
     document.addEventListener("DOMContentLoaded", function () {
         updateConditionalFields();
         updateOtherFields();
+        updateWnaFields();
         document.addEventListener("change", function () {
             updateConditionalFields();
             updateOtherFields();
+            updateWnaFields();
         });
         document.addEventListener("input", function () {
             updateConditionalFields();
             updateOtherFields();
+            updateWnaFields();
         });
     });
 })();
