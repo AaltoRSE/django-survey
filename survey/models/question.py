@@ -21,9 +21,7 @@ options for this question ."""
 
 
 SCALE_LIMITS_HELP_TEXT = _(
-    """The minimum and maximum are only used by the 'integer scale'
-question type. Name the ends of the scale in the question text
-itself; the options are shown as bare numbers."""
+    """range of possible answers"""
 )
 
 # Ranges offered as ready-made presets when authoring an integer scale.
