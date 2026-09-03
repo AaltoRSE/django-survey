@@ -14,8 +14,8 @@
 {% endblock %}
 
 {% block extracss %}
+  {{ block.super }}
   {% if asset_context.flatpickr %}
-    {{ block.super }}
     <link href="{% static 'survey/css/flatpickr.min.css'%}" rel="stylesheet" type="text/css"/>
   {% endif %}
 {% endblock %}
@@ -56,13 +56,13 @@
 		{% if survey.editable_answers or response_form.response is None %}
 	    {% if response_form.has_next_step %}
 				    <input
-  			          class="btn btn-default btn-lg"
+  			          class="btn btn-default btn-lg survey-submit"
 				        type="submit"
 				        value="{% trans "Next!" %}"
         			>
 				{% else %}
 				    <input
-  			          class="btn btn-default btn-lg"
+  			          class="btn btn-default btn-lg survey-submit"
 				        type="submit"
 				        value="{% trans "I'm done!" %}"
         			>
