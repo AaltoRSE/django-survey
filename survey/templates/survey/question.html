@@ -1,19 +1,20 @@
-<table class="table table-hover">
-    <!--<thead>
-      <tr>
-        <th> Question  </th>
-        <th> Answers </th>
-      </tr>
-    </thead> -->
-    <tbody>
 {% for form in response_form %}
 	{% if form.field.widget.attrs.category == category.name or category.name == 'No category' and not form.field.widget.attrs.category %}
-        <tr class="{{ form.field.tr_class }}{% if form.errors%} danger {% endif %}">
-            <td>
-	            <span class="{{ form.field.label_class }}">{{ form.label|safe }}</span>
-	            {% if form.field.show_required|default:form.field.required %}
+        {% if form.field.starts_group %}
+        <div class="{{ form.field.group_class }}" data-question-group>
+            <div class="{{ form.field.group_title_class }}">{{ form.field.group_title|safe }}{% if form.field.group_required %} <span class="glyphicon glyphicon-asterisk {{ form.field.required_class }}"> </span>{% endif %}</div>
+            {% if form.field.group_description %}<div class="{{ form.field.group_description_class }}">{{ form.field.group_description|safe }}</div>{% endif %}
+            <table class="{{ form.field.group_table_class }}">
+            <tbody>
+        {% endif %}
+        <tr class="{{ form.field.line_class }}{% if form.errors%} danger {% endif %}">
+            <td class="{{ form.field.label_cell_class }}">
+                <span class="{{ form.field.label_class }}">{{ form.field.row_label }}</span>
+	            {% if form.field.row_label and form.field.show_required|default:form.field.required %}
 	                <span class="glyphicon glyphicon-asterisk {{ form.field.required_class }}"> </span>
 	            {% endif %}
+            </td>
+            <td class="{{ form.field.answer_cell_class }}">
 	            <span class="help-inline {{ form.field.errors_class }}">
 	                <strong> {% for error in  form.errors %}{{ error }}{% endfor %} </strong>
 	            </span> <br>
@@ -21,11 +22,11 @@
                 <select name="{{form.name}}"{% if form.field.widget.attrs.disabled %} disabled{% endif %}>
                 {% endif %}
                 {% if form.field.as_choice_list %}
-                <div class="{{ form.field.row_class }}{% if form.field.horizontal %} likert-row{% endif %}">
+                <div class="{{ form.field.row_class }}">
                 {% for choice in form %}
-                    <label class="{{ form.field.option_class }} {{ form.field.option_number_class_prefix }}{{ forloop.counter }}{% if form.field.horizontal %} likert-option{% endif %}">
+                    <label class="{{ form.field.option_class }} {{ form.field.option_number_class_prefix }}{{ forloop.counter }}">
                         {{ choice.tag }}
-                        <span class="survey-question-option-label{% if form.field.horizontal %} likert-option-label{% endif %}">{{ choice.choice_label }}</span>
+                        <span class="survey-question-option-label">{{ choice.choice_label }}</span>
                     </label>
                 {% endfor %}
                 </div>
@@ -41,7 +42,10 @@
                 {% endif %}
             </td>
         </tr>
+        {% if form.field.ends_group %}
+            </tbody>
+            </table>
+        </div>
+        {% endif %}
 	{% endif %}
 {% endfor %}
-    </tbody>
-</table>

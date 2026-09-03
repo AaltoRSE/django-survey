@@ -8,7 +8,7 @@ from survey.tests.test_other_option import make_question, make_survey
 class QuestionCssClassesRenderingTests(TestCase):
     """Renders a survey page and asserts the three-tier CSS class scheme
     (generic / type-prefixed / pk-specific) plus companion-field classes and
-    the legacy likert classes are all present in the markup."""
+    the legacy likert classes are absent from the markup."""
 
     def setUp(self):
         self.survey = make_survey(display_method=Survey.ALL_IN_ONE_PAGE)
@@ -30,6 +30,11 @@ class QuestionCssClassesRenderingTests(TestCase):
         response = self.client.get(reverse("survey-detail", kwargs={"id": self.survey.pk}))
         self.assertEqual(response.status_code, 200)
         self.html = response.content.decode()
+
+    def test_uncategorised_questions_are_wrapped_in_a_category_block(self):
+        self.assertIn('class="survey-category survey-no-category"', self.html)
+        self.assertIn("survey-category-questions", self.html)
+        self.assertNotIn("panel-body", self.html)
 
     def test_survey_and_questions_containers_have_classes(self):
         self.assertIn(f'class="survey-container survey-{self.survey.pk}"', self.html)
@@ -60,10 +65,9 @@ class QuestionCssClassesRenderingTests(TestCase):
         self.assertIn(f"question-{self.scale_q.pk}-row", self.html)
         self.assertIn(f"question-{self.scale_q.pk}-option", self.html)
 
-    def test_integer_scale_question_keeps_legacy_likert_classes(self):
-        self.assertIn("likert-row", self.html)
-        self.assertIn("likert-option", self.html)
-        self.assertIn("likert-option-label", self.html)
+    def test_legacy_likert_classes_are_gone(self):
+        self.assertNotIn("likert-row", self.html)
+        self.assertNotIn("likert-option", self.html)
 
     def test_text_question_has_type_prefixed_row_class(self):
         self.assertIn("text-question-row", self.html)

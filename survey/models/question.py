@@ -67,6 +67,7 @@ LIKERT_5_LABELS = ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongl
 
 
 class Question(models.Model):
+
     TEXT = "text"
     SHORT_TEXT = "short-text"
     RADIO = "radio"
@@ -97,7 +98,14 @@ class Question(models.Model):
         (DATETIME, _("date and time")),
     )
 
-    text = models.TextField(_("Text"))
+    text = models.TextField(_("Text"), blank=True)
+    description = models.TextField(_("Description"), blank=True, default="")
+    label = models.CharField(_("Row label"), max_length=200, blank=True, default="")
+    group_with_previous = models.BooleanField(
+        _("Group with preceding question"),
+        default=False,
+        help_text=_("Show this question inside the preceding question's group, without a title of its own."),
+    )
     order = models.IntegerField(_("Order"))
     required = models.BooleanField(_("Required"))
     category = models.ForeignKey(
@@ -132,6 +140,8 @@ class Question(models.Model):
         super().save(*args, **kwargs)
 
     def clean(self):
+        if not self.group_with_previous and not self.text.strip():
+            raise ValidationError({"text": "A standalone question needs a title."})
         if self.other_option and self.type not in (Question.RADIO, Question.SELECT):
             raise ValidationError("The 'other' option is only available on radio/select questions.")
         if self.will_not_answer_option and self.type != Question.INTEGER_SCALE:

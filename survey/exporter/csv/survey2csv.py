@@ -7,6 +7,7 @@ from django.http import HttpResponse
 from django.utils.translation import gettext_lazy as _
 
 from survey.exporter.survey2x import Survey2X
+from survey.impl.question_groups import group_leads, export_name
 
 LOGGER = logging.getLogger(__name__)
 
@@ -66,8 +67,10 @@ class Survey2Csv(Survey2X):
     def get_header_and_order(self):
         header = [_("user")]  # , u"entity"]
         question_order = ["user"]  # , u"entity" ]
-        for question in self.survey.questions.all():
-            header.append(question.text)
+        questions = list(self.survey.questions.all())
+        leads = group_leads(questions)
+        for question in questions:
+            header.append(export_name(question, leads[question.pk]))
             question_order.append(question.pk)
         return header, question_order
 

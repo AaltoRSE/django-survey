@@ -3,6 +3,7 @@ from django.contrib import admin
 from django_ace import AceWidget
 
 from survey.actions import make_published
+from survey.admin_impl.question_groups import grouped_rows_without_predecessor
 from survey.admin_impl.question_order import pinned_question_ids, shift_colliding_questions
 from survey.exporter.csv import Survey2Csv
 from survey.exporter.tex import Survey2Tex
@@ -63,7 +64,7 @@ class QuestionAdmin(admin.ModelAdmin):
     """
 
     form = ScalePresetForm
-    list_display = ("text", "survey", "order", "type")
+    list_display = ("text", "survey", "order", "type", "label", "group_with_previous")
     list_filter = ("survey",)
     inlines = [ConditionInline]
 
@@ -73,7 +74,8 @@ admin.site.register(Question, QuestionAdmin)
 
 class ParentQuestionChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, obj):
-        text = obj.text if len(obj.text) <= 50 else obj.text[:47] + "..."
+        text = obj.text or obj.label
+        text = text if len(text) <= 50 else text[:47] + "..."
         return f"question {obj.order} – {text}"
 
 
@@ -185,6 +187,8 @@ class QuestionInlineForm(ScalePresetForm):
             self.add_error(
                 "will_not_answer_option", 'The "will not answer" option is only supported on integer scale questions.'
             )
+        if not cleaned_data.get("group_with_previous") and not (cleaned_data.get("text") or "").strip():
+            self.add_error("text", "A standalone question needs a title.")
         return cleaned_data
 
     def save_extensions(self):
@@ -196,13 +200,38 @@ class QuestionInlineForm(ScalePresetForm):
             QuestionCondition.objects.filter(question=self.instance).delete()
 
 
+class QuestionInlineFormSet(forms.BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        rows = []
+        for form in self.forms:
+            if not form.cleaned_data or form.cleaned_data.get("DELETE") or form.cleaned_data.get("order") is None:
+                continue
+            category = form.cleaned_data.get("category")
+            rows.append(
+                {
+                    "form": form,
+                    "order": form.cleaned_data["order"],
+                    "pk": form.instance.pk,
+                    "category_id": category.pk if category else None,
+                    "group_with_previous": form.cleaned_data.get("group_with_previous", False),
+                }
+            )
+        for row in grouped_rows_without_predecessor(rows):
+            row["form"].add_error("group_with_previous", "There is no preceding question in this category to group with.")
+
+
 class QuestionInline(admin.StackedInline):
     model = Question
     form = QuestionInlineForm
+    formset = QuestionInlineFormSet
     ordering = ("order", "category")
     extra = 1
     fields = (
+        "group_with_previous",
         "text",
+        "description",
+        "label",
         "order",
         "required",
         "category",

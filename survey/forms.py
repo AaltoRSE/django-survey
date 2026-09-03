@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.utils.text import slugify
 
 from survey.conditions import evaluate
+from survey.impl.question_groups import group_leads, mark_group_boundaries
 from survey.models import Answer, Category, Question, QuestionCondition, Response, Survey
 from survey.signals import survey_completed
 from survey.widgets import ImageSelectWidget, NativeDateTimeInput, NativeTimeInput
@@ -27,9 +28,11 @@ def question_css_classes(qtype, pk, suffix=""):
     :param str suffix: an optional segment inserted into the pk-specific
         classes for companion fields, e.g. "wna" -> "question-<pk>-wna-row".
     :rtype: dict with "label_class", "row_class", "option_class",
-        "option_number_class_prefix", "tr_class", "required_class",
-        "errors_class" keys. The template appends the 1-based option number to
-        "option_number_class_prefix" to get e.g. "question-<pk>-option-2".
+        "option_number_class_prefix", "question_class" (the element wrapping a
+        question group, taken from its first question), "line_class" (one answer
+        row), "table_class", "label_cell_class", "answer_cell_class", "title_class", "description_class", "required_class", "errors_class" keys. The template appends the 1-based
+        option number to "option_number_class_prefix" to get e.g.
+        "question-<pk>-option-2".
     """
     pk_segment = f"{pk}-{suffix}" if suffix else f"{pk}"
     return {
@@ -37,7 +40,17 @@ def question_css_classes(qtype, pk, suffix=""):
         "row_class": f"survey-question-row {qtype}-question-row question-{pk_segment}-row",
         "option_class": f"survey-question-option {qtype}-question-option question-{pk_segment}-option",
         "option_number_class_prefix": f"question-{pk_segment}-option-",
-        "tr_class": f"survey-question {qtype}-question question-{pk_segment}",
+        "question_class": f"survey-question {qtype}-question question-{pk_segment}",
+        "line_class": f"survey-question-line {qtype}-question-line question-{pk_segment}-line",
+        "table_class": f"survey-question-table {qtype}-question-table question-{pk_segment}-table",
+        "label_cell_class": f"survey-question-label-cell {qtype}-question-label-cell question-{pk_segment}-label-cell",
+        "answer_cell_class": (
+            f"survey-question-answer-cell {qtype}-question-answer-cell question-{pk_segment}-answer-cell"
+        ),
+        "title_class": f"survey-question-title {qtype}-question-title question-{pk_segment}-title",
+        "description_class": (
+            f"survey-question-description {qtype}-question-description question-{pk_segment}-description"
+        ),
         "required_class": f"survey-question-required {qtype}-question-required question-{pk_segment}-required",
         "errors_class": f"survey-question-errors {qtype}-question-errors question-{pk_segment}-errors",
     }
@@ -220,14 +233,30 @@ class ResponseForm(models.ModelForm):
             else:
                 qs_for_step = self.survey.questions.filter(category=self.categories[self.step])
 
+            leads = group_leads(list(qs_for_step))
             for question in qs_for_step:
-                self.add_question(question, data)
+                self.add_question(question, data, leads[question.pk])
         else:
-            for i, question in enumerate(self.survey.questions.all()):
+            all_questions = list(self.survey.questions.all())
+            # Groups never cross categories, so leads are computed per category,
+            # walking questions in their existing (display) order.
+            leads = {}
+            questions_by_category = {}
+            for question in all_questions:
+                questions_by_category.setdefault(question.category_id, []).append(question)
+            for category_questions in questions_by_category.values():
+                leads.update(group_leads(category_questions))
+
+            for i, question in enumerate(all_questions):
                 not_to_keep = i != self.step and self.step is not None
                 if self.survey.display_method == Survey.BY_QUESTION and not_to_keep:
                     continue
-                self.add_question(question, data)
+                if self.survey.display_method == Survey.BY_QUESTION:
+                    lead = question
+                else:
+                    lead = leads[question.pk]
+                self.add_question(question, data, lead)
+        mark_group_boundaries(self.fields)
 
     def current_categories(self):
         if self.survey.display_method == Survey.BY_CATEGORY:
@@ -392,12 +421,14 @@ class ResponseForm(models.ModelForm):
         except KeyError:
             return forms.ChoiceField(**kwargs)
 
-    def add_question(self, question, data):
+    def add_question(self, question, data, lead):
         """Add a question to the form.
 
         :param Question question: The question to add.
-        :param dict data: The pre-existing values from a post request."""
-        kwargs = {"label": question.text, "required": question.required}
+        :param dict data: The pre-existing values from a post request.
+        :param Question lead: The question that opens this question's group
+            (itself, for a standalone question)."""
+        kwargs = {"label": question.label or lead.text, "required": question.required}
         if question.pk in self._wna_questions:
             # The checkbox companion field can substitute for an answer; clean()
             # re-enforces requiredness once it knows whether the box is checked.
@@ -418,20 +449,31 @@ class ResponseForm(models.ModelForm):
             field.widget.attrs["class"] = "date"
         field.widget.attrs["question_type"] = question.type
         css_classes = question_css_classes(question.type, question.pk)
+        lead_css_classes = question_css_classes(lead.type, lead.pk)
         field.label_class = css_classes["label_class"]
         field.row_class = css_classes["row_class"]
         field.option_class = css_classes["option_class"]
         field.option_number_class_prefix = css_classes["option_number_class_prefix"]
-        field.tr_class = css_classes["tr_class"]
+        field.line_class = css_classes["line_class"]
+        field.label_cell_class = css_classes["label_cell_class"]
+        field.answer_cell_class = css_classes["answer_cell_class"]
         field.required_class = css_classes["required_class"]
         field.errors_class = css_classes["errors_class"]
+        field.group_id = lead.pk
+        field.group_title = lead.text
+        field.group_required = lead.required
+        field.group_description = lead.description
+        field.row_label = question.label
+        field.group_class = lead_css_classes["question_class"]
+        field.group_title_class = lead_css_classes["title_class"]
+        field.group_table_class = lead_css_classes["table_class"]
+        field.group_description_class = lead_css_classes["description_class"]
         field.as_choice_list = question.type in (
             Question.RADIO,
             Question.SELECT_MULTIPLE,
             Question.LIKERT_5,
             Question.INTEGER_SCALE,
         )
-        field.horizontal = question.type in (Question.LIKERT_5, Question.INTEGER_SCALE)
         # logging.debug("Field for %s : %s", question, field.__dict__)
         self.fields[f"question_{question.pk}"] = field
 
@@ -446,6 +488,13 @@ class ResponseForm(models.ModelForm):
             other_field.option_number_class_prefix = other_css_classes["option_number_class_prefix"]
             other_field.required_class = other_css_classes["required_class"]
             other_field.errors_class = other_css_classes["errors_class"]
+            other_field.group_id = lead.pk
+            other_field.group_class = lead_css_classes["question_class"]
+            other_field.line_class = other_css_classes["line_class"]
+            other_field.label_cell_class = other_css_classes["label_cell_class"]
+            other_field.answer_cell_class = other_css_classes["answer_cell_class"]
+            other_field.group_title = ""
+            other_field.group_description = ""
             other_initial = self._other_initial.get(question.pk)
             if other_initial is not None:
                 other_field.initial = other_initial
@@ -462,6 +511,13 @@ class ResponseForm(models.ModelForm):
             wna_field.option_number_class_prefix = wna_css_classes["option_number_class_prefix"]
             wna_field.required_class = wna_css_classes["required_class"]
             wna_field.errors_class = wna_css_classes["errors_class"]
+            wna_field.group_id = lead.pk
+            wna_field.group_class = lead_css_classes["question_class"]
+            wna_field.line_class = wna_css_classes["line_class"]
+            wna_field.label_cell_class = wna_css_classes["label_cell_class"]
+            wna_field.answer_cell_class = wna_css_classes["answer_cell_class"]
+            wna_field.group_title = ""
+            wna_field.group_description = ""
             if question.pk in self._wna_initial:
                 wna_field.initial = True
             self.fields[f"question_{question.pk}_wna"] = wna_field

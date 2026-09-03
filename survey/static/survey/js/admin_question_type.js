@@ -1,4 +1,5 @@
-/* Admin: hide question fields irrelevant to the selected question type.
+/* Admin: hide question fields irrelevant to the selected question type or
+   to a question grouped with the preceding one.
 
    Display-only UX; server-side validation in Question.clean() /
    QuestionInlineForm.clean() stays authoritative (same philosophy as the
@@ -8,6 +9,11 @@
     "use strict";
 
     var TYPE_NAME = /^(questions-(\d+|__prefix__)-)?type$/;
+    var GROUP_NAME = /^(questions-(\d+|__prefix__)-)?group_with_previous$/;
+
+    // Fields ignored for a question grouped with the preceding one: the
+    // group's title and description come from that question.
+    var GROUP_HIDDEN_FIELDS = ["text", "description"];
 
     // Field name -> types that show it. Fields absent from a given page
     // (e.g. other_label / will_not_answer_label on the inline) simply
@@ -41,19 +47,39 @@
         }
     }
 
+    function updateGroupRow(checkbox) {
+        var container = checkbox.closest(".inline-related") || checkbox.closest("form");
+        if (!container) {
+            return;
+        }
+        for (var i = 0; i < GROUP_HIDDEN_FIELDS.length; i++) {
+            var row = container.querySelector(".form-row.field-" + GROUP_HIDDEN_FIELDS[i]);
+            if (row) {
+                row.style.display = checkbox.checked ? "none" : "";
+            }
+        }
+    }
+
     function updateAll(root) {
-        var selects = (root || document).querySelectorAll('[name]');
-        for (var i = 0; i < selects.length; i++) {
-            if (TYPE_NAME.test(selects[i].name)) {
-                updateRow(selects[i]);
+        var inputs = (root || document).querySelectorAll('[name]');
+        for (var i = 0; i < inputs.length; i++) {
+            if (TYPE_NAME.test(inputs[i].name)) {
+                updateRow(inputs[i]);
+            } else if (GROUP_NAME.test(inputs[i].name)) {
+                updateGroupRow(inputs[i]);
             }
         }
     }
 
     document.addEventListener("change", function (event) {
         var target = event.target;
-        if (target.name && TYPE_NAME.test(target.name)) {
+        if (!target.name) {
+            return;
+        }
+        if (TYPE_NAME.test(target.name)) {
             updateRow(target);
+        } else if (GROUP_NAME.test(target.name)) {
+            updateGroupRow(target);
         }
     });
 

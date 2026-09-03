@@ -1,81 +1,68 @@
-/* Example: card-style survey questions.
+/* Example: card-style question groups.
  *
  * Paste this into a CSS snippet (admin > Css snippets) or adapt it to taste.
- * Each question becomes a rounded card on the gray page background, with the
- * question text as a header separated from the options by a line.
+ * Each question group (a standalone question, or a question plus the group
+ * questions that follow it) becomes a rounded block on a flat page background,
+ * with the group title as a header separated from the answer lines by a rule.
  *
- * It relies on the survey question class scheme:
- *   .survey-question           the question's table row
- *   .survey-question-label     the question text
- *   .survey-question-row       the container holding the options
- *   .survey-question-option    one option
- * plus <type>-question-* and question-<pk>-* variants for narrower targeting.
+ * It relies on the survey class scheme. The group element carries the classes
+ * of its first question:
+ *   .survey-question              one question group (also <type>-question, question-<pk>)
+ *   .survey-question-title        the group title (also <type>-question-title, question-<pk>-title)
+ *   .survey-question-description  the group description
+ *   .survey-question-table        the table of answer lines inside the group
+ *   .survey-question-line         one answer line (question-<pk>-line)
+ *   .survey-question-label-cell   the cell holding the line's label
+ *   .survey-question-answer-cell  the cell holding the answer form
+ *   .survey-question-label        the label text
+ *   .survey-question-row          the container holding the options
+ *   .survey-question-option       one option (also question-<pk>-option-<n>)
  */
 
-/* Questions are table rows; turn each into a free-standing block ("card"). */
-tr.survey-question {
-    display: block;
+/* Flatten the page chrome so only the groups stand out. */
+#container-main.well {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+}
+
+/* The question group as a card. */
+.survey-question {
     margin: 0 0 1.25em;
+    padding: 1em 1.25em;
     background: #fdfdfd;
     border: 1px solid #ddd;
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
-tr.survey-question > td {
-    display: block;
-    padding: 1em 1.25em;
-    border-top: none; /* bootstrap .table td separator */
-}
-
-/* Question text as a card header. The required asterisk and error message
- * stay on the header row; the line sits above the options container so it
- * runs under all of them. */
-.survey-question-label {
+.survey-question-title {
     font-size: 1.1em;
     font-weight: bold;
 }
-.survey-question-row {
+.survey-question-description {
+    color: #555;
+    margin-top: 0.3em;
+}
+
+/* Answer lines: a rule under the header, then one line per question with the
+ * label on the left and the options on the right. */
+.survey-question-table {
+    width: 100%;
+    margin: 0.8em 0 0;
+    padding-top: 0.6em;
     border-top: 1px solid #e5e5e5;
-    margin-top: 0.6em;
-    padding-top: 0.8em;
+}
+.survey-question-label-cell,
+.survey-question-answer-cell {
+    padding: 0 0.5em 0.6em;
+    vertical-align: middle;
+}
+.survey-question-label-cell {
+    width: 12em;
+    white-space: nowrap;
+}
+.survey-question-label {
+    font-weight: bold;
 }
 
-/* The "will not answer" / "other" companion fields render as their own table
- * rows right after their question; fuse them onto the bottom of its card.
- * (Uses :has(); on browsers without it they fall back to plain rows.) */
-tr:has(> td > .wna-question-row),
-tr:has(> td > .other-question-row) {
-    display: block;
-    margin: -1.25em 0 1.25em; /* pull up against the card above */
-    background: #fdfdfd;
-    border: 1px solid #ddd;
-    border-top: none;
-    border-radius: 0 0 8px 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-tr:has(> td > .wna-question-row) > td,
-tr:has(> td > .other-question-row) > td {
-    display: block;
-    padding: 0 1.25em 1em;
-    border-top: none;
-}
-tr.survey-question:has(+ tr > td > .wna-question-row),
-tr.survey-question:has(+ tr > td > .other-question-row) {
-    margin-bottom: 0;
-    border-bottom: none;
-    border-radius: 8px 8px 0 0;
-}
-.wna-question-row,
-.other-question-row {
-    border-top: none;
-    margin-top: 0;
-    padding-top: 0;
-}
-
-/* Neutralize the bootstrap table chrome behind the cards. */
-.table.table-hover {
-    background: transparent;
-}
-.table-hover > tbody > tr:hover {
-    background: transparent;
-}

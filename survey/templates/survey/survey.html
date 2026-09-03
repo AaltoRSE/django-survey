@@ -35,30 +35,20 @@
 	    {% csrf_token %}
         <div class="survey-questions-container">
         {% for category in categories %}
-            <h3> {{category}} </h3>
-            <p> {{category.description|default_if_none:""}} </p>
-			<div class="panel-group" id="accordion">
-				<div class="panel panel-default">
-				    <div class="panel-heading">
-				        <h3 class="panel-title"> <a
-				        data-toggle="collapse show"
-				        data-parent="#accordion"
-				        href="#collapse{{category.slugify}}">
-				            {% trans "Answer this part" %}
-			            </a></h3>
-				    </div>
-                    <div class="category-container">
-				        <div id="collapse{{category.slugify}}" class="panel-collapse collapse show {% if not survey.editable_answers and response_form.response is not None %}in{% endif %}
-				        {{ response_form|collapse_form:category }}">
-				            <div class="panel-body">
-	                           {% include "survey/question.html" %}
-                            </div>
-		                </div>
-                </div>
+            <div class="survey-category {% if category.pk %}category-{{category.pk}}{% else %}survey-no-category{% endif %}">
+            <h3 class="survey-category-title"> {{category}} </h3>
+            <p class="survey-category-description"> {{category.description|default_if_none:""}} </p>
+            <div class="survey-category-questions">
+                {% include "survey/question.html" %}
+            </div>
             </div>
         {% empty %}
-            <h3> {% trans "Questions" %} </h3>
+            <div class="survey-category survey-no-category">
+            <h3 class="survey-category-title"> {% trans "Questions" %} </h3>
+            <div class="survey-category-questions">
             {% include "survey/question.html" %}
+            </div>
+            </div>
         {% endfor %}
         </div>
 

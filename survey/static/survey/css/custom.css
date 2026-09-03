@@ -9,12 +9,16 @@
 .survey-question-errors {
   color: red;
 }
-.likert-row {
+/* 5-point likert and integer scale options lie in one horizontal row with
+ * the label under each button. */
+.likert-5-question-row,
+.integer-scale-question-row {
   display: flex;
   gap: 0.25em;
   align-items: flex-start;
 }
-.likert-option {
+.likert-5-question-option,
+.integer-scale-question-option {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -25,8 +29,15 @@
   font-weight: normal;
   cursor: pointer;
 }
-.likert-option-label {
+.likert-5-question-option > .survey-question-option-label,
+.integer-scale-question-option > .survey-question-option-label {
   font-size: 0.85em;
   margin-top: 0.3em;
   line-height: 1.2;
+}
+.wna-question-label-cell,
+.wna-question-answer-cell,
+.other-question-label-cell,
+.other-question-answer-cell {
+  padding-top: 0;
 }

@@ -162,19 +162,33 @@
         }
     }
 
-    document.addEventListener("DOMContentLoaded", function () {
+    function updateGroupVisibility() {
+        // A question group (title, description and its answer lines) is
+        // hidden when every one of its lines is hidden.
+        var groups = document.querySelectorAll("[data-question-group]");
+        for (var i = 0; i < groups.length; i++) {
+            var rows = groups[i].querySelectorAll("tr");
+            var anyVisible = false;
+            for (var j = 0; j < rows.length; j++) {
+                if (!rows[j].hidden) {
+                    anyVisible = true;
+                    break;
+                }
+            }
+            groups[i].hidden = !anyVisible;
+        }
+    }
+
+    function updateAll() {
         updateConditionalFields();
         updateOtherFields();
         updateWnaFields();
-        document.addEventListener("change", function () {
-            updateConditionalFields();
-            updateOtherFields();
-            updateWnaFields();
-        });
-        document.addEventListener("input", function () {
-            updateConditionalFields();
-            updateOtherFields();
-            updateWnaFields();
-        });
+        updateGroupVisibility();
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        updateAll();
+        document.addEventListener("change", updateAll);
+        document.addEventListener("input", updateAll);
     });
 })();

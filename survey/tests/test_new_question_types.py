@@ -401,7 +401,7 @@ class IntegerScaleRedisplayTests(TestCase):
 
 
 class IntegerScaleTemplateTests(TestCase):
-    """The integer scale shares the horizontal likert layout in question.html."""
+    """The integer scale renders its options as one row of type-classed options."""
 
     def setUp(self):
         self.survey = make_survey()
@@ -415,8 +415,8 @@ class IntegerScaleTemplateTests(TestCase):
 
     def test_scale_question_is_rendered_with_the_horizontal_scale_layout(self):
         html = self._render()
-        self.assertIn('likert-row', html)
-        self.assertEqual(html.count('likert-option"'), 11)
+        self.assertIn("integer-scale-question-row", html)
+        self.assertEqual(html.count("integer-scale-question-option "), 11)
 
     def test_every_step_of_the_scale_is_rendered_as_a_radio_input(self):
         html = self._render()
