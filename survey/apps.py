@@ -9,3 +9,6 @@ class DjangoSurveyAndReportConfig(AppConfig):
     name = "survey"
     label = "survey"
     verbose_name = "Survey and report"
+    # Pin the primary key type so a host project's DEFAULT_AUTO_FIELD setting
+    # does not demand migrations for this app.
+    default_auto_field = "django.db.models.AutoField"
