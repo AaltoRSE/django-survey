@@ -98,7 +98,7 @@ class Question(models.Model):
         (DATETIME, _("date and time")),
     )
 
-    text = models.TextField(_("Text"), blank=True)
+    text = models.TextField(_("Title"), blank=True)
     description = models.TextField(_("Description"), blank=True, default="")
     header_rows = models.TextField(
         _("Header rows"),
