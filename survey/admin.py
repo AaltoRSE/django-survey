@@ -231,6 +231,7 @@ class QuestionInline(admin.StackedInline):
         "group_with_previous",
         "text",
         "description",
+        "header_rows",
         "label",
         "order",
         "required",

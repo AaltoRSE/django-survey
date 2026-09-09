@@ -53,6 +53,54 @@ def mark_group_boundaries(fields):
         previous_group_id = group_id
 
 
+def parse_header_rows(text, separator):
+    """Parse a question's `header_rows` text into a grid of cell strings.
+
+    `text` holds one header row per line, with cells separated by
+    `separator`. Blank (or whitespace-only) lines are dropped; each
+    remaining line's cells are stripped of surrounding whitespace, but empty
+    cells are kept (so short rows can leave leading/trailing gaps).
+
+    :param str text: the raw `Question.header_rows` value, or falsy.
+    :param str separator: the cell separator, e.g. `settings.CHOICES_SEPARATOR`.
+    :rtype: list[list[str]]
+    """
+    if not text:
+        return []
+    rows = []
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        rows.append([cell.strip() for cell in line.split(separator)])
+    return rows
+
+
+def mark_row_parity(fields):
+    """Set `row_parity` ("odd"/"even") on each form field, alternating within
+    each group.
+
+    Walks `fields` (a mapping of field name -> field, e.g. `form.fields`) in
+    insertion order, using the same grouping rule as `mark_group_boundaries`:
+    consecutive fields sharing a `group_id` belong to the same group, and
+    fields with no `group_id` attribute are their own single-field group.
+    Within each group, the first field is "odd", the second "even", the
+    third "odd", and so on.
+
+    :param dict fields: form fields, in insertion order.
+    """
+    previous_group_id = object()
+    row_index = 0
+    for field in fields.values():
+        group_id = getattr(field, "group_id", None)
+        if group_id is None:
+            group_id = object()
+        if group_id != previous_group_id:
+            row_index = 0
+        field.row_parity = "even" if row_index % 2 else "odd"
+        row_index += 1
+        previous_group_id = group_id
+
+
 def export_name(question, lead):
     """Return the CSV/export column name for `question`, given its group lead.
 

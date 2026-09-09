@@ -9,7 +9,7 @@ from django.urls import reverse
 from django.utils.text import slugify
 
 from survey.conditions import evaluate
-from survey.impl.question_groups import group_leads, mark_group_boundaries
+from survey.impl.question_groups import group_leads, mark_group_boundaries, mark_row_parity, parse_header_rows
 from survey.models import Answer, Category, Question, QuestionCondition, Response, Survey
 from survey.signals import survey_completed
 from survey.widgets import ImageSelectWidget, NativeDateTimeInput, NativeTimeInput
@@ -30,9 +30,13 @@ def question_css_classes(qtype, pk, suffix=""):
     :rtype: dict with "label_class", "row_class", "option_class",
         "option_number_class_prefix", "question_class" (the element wrapping a
         question group, taken from its first question), "line_class" (one answer
-        row), "table_class", "label_cell_class", "answer_cell_class", "title_class", "description_class", "required_class", "errors_class" keys. The template appends the 1-based
+        row), "table_class", "label_cell_class", "answer_cell_class", "title_class", "description_class", "required_class", "errors_class",
+        "header_line_class" (a header row's <tr>), "header_row_class" (the div
+        wrapping a header row's cells), "header_cell_class" (one header cell),
+        "header_cell_number_class_prefix" keys. The template appends the 1-based
         option number to "option_number_class_prefix" to get e.g.
-        "question-<pk>-option-2".
+        "question-<pk>-option-2", and similarly the 1-based cell number to
+        "header_cell_number_class_prefix".
     """
     pk_segment = f"{pk}-{suffix}" if suffix else f"{pk}"
     return {
@@ -53,6 +57,10 @@ def question_css_classes(qtype, pk, suffix=""):
         ),
         "required_class": f"survey-question-required {qtype}-question-required question-{pk_segment}-required",
         "errors_class": f"survey-question-errors {qtype}-question-errors question-{pk_segment}-errors",
+        "header_line_class": f"survey-question-header-line {qtype}-question-header-line question-{pk_segment}-header-line",
+        "header_row_class": f"survey-question-header-row {qtype}-question-header-row question-{pk_segment}-header-row",
+        "header_cell_class": f"survey-question-header-cell {qtype}-question-header-cell question-{pk_segment}-header-cell",
+        "header_cell_number_class_prefix": f"question-{pk_segment}-header-cell-",
     }
 
 
@@ -257,6 +265,7 @@ class ResponseForm(models.ModelForm):
                     lead = leads[question.pk]
                 self.add_question(question, data, lead)
         mark_group_boundaries(self.fields)
+        mark_row_parity(self.fields)
 
     def current_categories(self):
         if self.survey.display_method == Survey.BY_CATEGORY:
@@ -468,6 +477,11 @@ class ResponseForm(models.ModelForm):
         field.group_title_class = lead_css_classes["title_class"]
         field.group_table_class = lead_css_classes["table_class"]
         field.group_description_class = lead_css_classes["description_class"]
+        field.group_header_rows = parse_header_rows(lead.header_rows, settings.CHOICES_SEPARATOR)
+        field.group_header_line_class = lead_css_classes["header_line_class"]
+        field.group_header_row_class = lead_css_classes["header_row_class"]
+        field.group_header_cell_class = lead_css_classes["header_cell_class"]
+        field.group_header_cell_number_class_prefix = lead_css_classes["header_cell_number_class_prefix"]
         field.as_choice_list = question.type in (
             Question.RADIO,
             Question.SELECT_MULTIPLE,
@@ -495,6 +509,7 @@ class ResponseForm(models.ModelForm):
             other_field.answer_cell_class = other_css_classes["answer_cell_class"]
             other_field.group_title = ""
             other_field.group_description = ""
+            other_field.group_header_rows = []
             other_initial = self._other_initial.get(question.pk)
             if other_initial is not None:
                 other_field.initial = other_initial
@@ -518,6 +533,7 @@ class ResponseForm(models.ModelForm):
             wna_field.answer_cell_class = wna_css_classes["answer_cell_class"]
             wna_field.group_title = ""
             wna_field.group_description = ""
+            wna_field.group_header_rows = []
             if question.pk in self._wna_initial:
                 wna_field.initial = True
             self.fields[f"question_{question.pk}_wna"] = wna_field

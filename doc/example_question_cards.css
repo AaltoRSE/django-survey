@@ -66,3 +66,17 @@
     font-weight: bold;
 }
 
+/* Header rows (e.g. "0,1,2\nlow,,high") above a group's answer lines: give
+ * the cells equal width and alternate the answer lines' backgrounds so long
+ * groups stay easy to scan. */
+.survey-question-header-row {
+    display: flex;
+}
+.survey-question-header-cell {
+    flex: 1;
+    text-align: center;
+}
+.survey-question-line-even {
+    background: #f7f7f7;
+}
+

@@ -100,6 +100,12 @@ class Question(models.Model):
 
     text = models.TextField(_("Text"), blank=True)
     description = models.TextField(_("Description"), blank=True, default="")
+    header_rows = models.TextField(
+        _("Header rows"),
+        blank=True,
+        default="",
+        help_text=_("Label rows shown above the answers of this question's group. One row per line, cells separated by commas."),
+    )
     label = models.CharField(_("Row label"), max_length=200, blank=True, default="")
     group_with_previous = models.BooleanField(
         _("Group with preceding question"),

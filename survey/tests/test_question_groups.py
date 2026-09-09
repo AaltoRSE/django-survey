@@ -4,7 +4,13 @@ from django.urls import reverse
 
 from survey.exporter.csv.survey2csv import Survey2Csv
 from survey.forms import ResponseForm
-from survey.impl.question_groups import group_leads, export_name, mark_group_boundaries
+from survey.impl.question_groups import (
+    group_leads,
+    export_name,
+    mark_group_boundaries,
+    mark_row_parity,
+    parse_header_rows,
+)
 from survey.models import Category, Question, Survey
 from survey.tests.test_other_option import make_question, make_survey
 
@@ -99,6 +105,67 @@ class ExportNameTests(TestCase):
         self.assertEqual(export_name(lead, lead), "Flavors")
 
 
+class ParseHeaderRowsTests(TestCase):
+    def test_multiple_lines_become_multiple_rows(self):
+        rows = parse_header_rows("0,1,2\nlow,,high", ",")
+        self.assertEqual(rows, [["0", "1", "2"], ["low", "", "high"]])
+
+    def test_blank_lines_are_skipped(self):
+        rows = parse_header_rows("0,1\n\n   \n2,3", ",")
+        self.assertEqual(rows, [["0", "1"], ["2", "3"]])
+
+    def test_cells_are_stripped_but_empty_cells_kept(self):
+        rows = parse_header_rows(" a , , b ", ",")
+        self.assertEqual(rows, [["a", "", "b"]])
+
+    def test_empty_text_returns_empty_list(self):
+        self.assertEqual(parse_header_rows("", ","), [])
+        self.assertEqual(parse_header_rows(None, ","), [])
+
+
+class MarkRowParityTests(TestCase):
+    def test_parity_alternates_within_a_group(self):
+        class FakeField:
+            pass
+
+        fields = {}
+        for i in range(4):
+            field = FakeField()
+            field.group_id = 1
+            fields[f"question_{i}"] = field
+        mark_row_parity(fields)
+        parities = [field.row_parity for field in fields.values()]
+        self.assertEqual(parities, ["odd", "even", "odd", "even"])
+
+    def test_parity_restarts_for_each_group(self):
+        class FakeField:
+            pass
+
+        first, second, third = FakeField(), FakeField(), FakeField()
+        first.group_id = 1
+        second.group_id = 1
+        third.group_id = 2
+
+        fields = {"a": first, "b": second, "c": third}
+        mark_row_parity(fields)
+
+        self.assertEqual(first.row_parity, "odd")
+        self.assertEqual(second.row_parity, "even")
+        self.assertEqual(third.row_parity, "odd")
+
+    def test_fields_without_group_id_are_odd(self):
+        class FakeField:
+            pass
+
+        first, second = FakeField(), FakeField()
+
+        fields = {"a": first, "b": second}
+        mark_row_parity(fields)
+
+        self.assertEqual(first.row_parity, "odd")
+        self.assertEqual(second.row_parity, "odd")
+
+
 class QuestionGroupRenderingTests(TestCase):
     def setUp(self):
         self.survey = make_survey(display_method=Survey.ALL_IN_ONE_PAGE)
@@ -137,6 +204,42 @@ class QuestionGroupRenderingTests(TestCase):
     def test_group_shows_each_row_label(self):
         self.assertIn(">Chocolate<", self.html)
         self.assertIn(">Strawberry<", self.html)
+
+
+class HeaderRowsRenderingTests(TestCase):
+    def setUp(self):
+        self.survey = make_survey(display_method=Survey.ALL_IN_ONE_PAGE)
+        self.lead = make_question(self.survey, Question.RADIO, order=1, choices="Yes,No", text="Ratings")
+        self.lead.header_rows = "0,1,2\nlow,,high"
+        self.lead.save()
+        self.follower = Question.objects.create(
+            survey=self.survey,
+            text="",
+            order=2,
+            required=False,
+            type=Question.RADIO,
+            choices="Yes,No",
+            group_with_previous=True,
+            label="Row 2",
+        )
+        response = self.client.get(reverse("survey-detail", kwargs={"id": self.survey.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.html = response.content.decode()
+
+    def test_header_line_row_and_cell_classes_present(self):
+        self.assertIn("survey-question-header-line", self.html)
+        self.assertIn("survey-question-header-row", self.html)
+        self.assertIn("survey-question-header-cell", self.html)
+
+    def test_header_cell_has_numbered_pk_specific_class(self):
+        self.assertIn(f"question-{self.lead.pk}-header-cell-1", self.html)
+
+    def test_header_rendered_once_not_per_follower(self):
+        self.assertEqual(self.html.count("survey-question-header-line"), 2)
+
+    def test_row_parity_classes_present(self):
+        self.assertIn("survey-question-line-odd", self.html)
+        self.assertIn("survey-question-line-even", self.html)
 
 
 class QuestionValidationTests(TestCase):
