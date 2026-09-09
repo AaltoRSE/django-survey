@@ -13,7 +13,7 @@
 
     // Fields ignored for a question grouped with the preceding one: the
     // group's title and description come from that question.
-    var GROUP_HIDDEN_FIELDS = ["text", "description"];
+    var GROUP_HIDDEN_FIELDS = ["text", "description", "header_rows"];
 
     // Field name -> types that show it. Fields absent from a given page
     // (e.g. other_label / will_not_answer_label on the inline) simply
