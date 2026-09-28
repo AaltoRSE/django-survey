@@ -2,9 +2,11 @@
    to a question grouped with the preceding one.
 
    Display-only UX; server-side validation in Question.clean() /
-   QuestionInlineForm.clean() stays authoritative (same philosophy as the
-   conditional.js header comment). Listeners are delegated from the document
-   because the Survey page adds question inlines dynamically. */
+   QuestionInlineForm.clean() stays authoritative, and the answer-defining
+   fields hidden on grouped questions are overwritten with the group lead's
+   values on save (same philosophy as the conditional.js header comment).
+   Listeners are delegated from the document because the Survey page adds
+   question inlines dynamically. */
 (function () {
     "use strict";
 
@@ -12,61 +14,79 @@
     var GROUP_NAME = /^(questions-(\d+|__prefix__)-)?group_with_previous$/;
 
     // Fields ignored for a question grouped with the preceding one: the
-    // group's title and description come from that question.
-    var GROUP_HIDDEN_FIELDS = ["text", "description", "header_rows"];
+    // group's title, description and answer-defining settings come from the
+    // question that opens the group.
+    var GROUP_HIDDEN_FIELDS = [
+        "text",
+        "description",
+        "header_rows",
+        "type",
+        "choices",
+        "scale_preset",
+        "scale_min",
+        "scale_max",
+        "other_option",
+        "other_label",
+        "will_not_answer_option",
+        "will_not_answer_label",
+    ];
 
     // Field name -> types that show it. Fields absent from a given page
-    // (e.g. other_label / will_not_answer_label on the inline) simply
-    // resolve to no matching row and are skipped.
+    // simply resolve to no matching row and are skipped. The "other" and
+    // "will not answer" options are available on every question type, so
+    // they are not listed here.
     var FIELD_TYPES = {
         choices: ["radio", "select", "select-multiple", "select_image"],
         scale_preset: ["integer-scale"],
         scale_min: ["integer-scale"],
         scale_max: ["integer-scale"],
-        other_option: ["radio", "select"],
-        other_label: ["radio", "select"],
-        will_not_answer_option: ["integer-scale"],
-        will_not_answer_label: ["integer-scale"],
     };
 
-    function updateRow(typeSelect) {
-        var container = typeSelect.closest(".inline-related") || typeSelect.closest("form");
-        if (!container) {
-            return;
-        }
-        var type = typeSelect.value;
-        for (var name in FIELD_TYPES) {
-            if (!FIELD_TYPES.hasOwnProperty(name)) {
-                continue;
+    function findInput(container, pattern) {
+        var inputs = container.querySelectorAll("[name]");
+        for (var i = 0; i < inputs.length; i++) {
+            if (pattern.test(inputs[i].name)) {
+                return inputs[i];
             }
-            var row = container.querySelector(".form-row.field-" + name);
+        }
+        return null;
+    }
+
+    function updateContainer(container) {
+        var typeSelect = findInput(container, TYPE_NAME);
+        var groupCheckbox = findInput(container, GROUP_NAME);
+        var grouped = Boolean(groupCheckbox && groupCheckbox.checked);
+        var names = GROUP_HIDDEN_FIELDS.slice();
+        for (var name in FIELD_TYPES) {
+            if (FIELD_TYPES.hasOwnProperty(name) && names.indexOf(name) === -1) {
+                names.push(name);
+            }
+        }
+        for (var i = 0; i < names.length; i++) {
+            var row = container.querySelector(".form-row.field-" + names[i]);
             if (!row) {
                 continue;
             }
-            row.style.display = FIELD_TYPES[name].indexOf(type) === -1 ? "none" : "";
+            var hidden = grouped && GROUP_HIDDEN_FIELDS.indexOf(names[i]) !== -1;
+            if (!hidden && FIELD_TYPES[names[i]] && typeSelect) {
+                hidden = FIELD_TYPES[names[i]].indexOf(typeSelect.value) === -1;
+            }
+            row.style.display = hidden ? "none" : "";
         }
     }
 
-    function updateGroupRow(checkbox) {
-        var container = checkbox.closest(".inline-related") || checkbox.closest("form");
-        if (!container) {
-            return;
-        }
-        for (var i = 0; i < GROUP_HIDDEN_FIELDS.length; i++) {
-            var row = container.querySelector(".form-row.field-" + GROUP_HIDDEN_FIELDS[i]);
-            if (row) {
-                row.style.display = checkbox.checked ? "none" : "";
-            }
-        }
+    function containerOf(input) {
+        return input.closest(".inline-related") || input.closest("form");
     }
 
     function updateAll(root) {
-        var inputs = (root || document).querySelectorAll('[name]');
+        var inputs = (root || document).querySelectorAll("[name]");
         for (var i = 0; i < inputs.length; i++) {
-            if (TYPE_NAME.test(inputs[i].name)) {
-                updateRow(inputs[i]);
-            } else if (GROUP_NAME.test(inputs[i].name)) {
-                updateGroupRow(inputs[i]);
+            if (TYPE_NAME.test(inputs[i].name) || GROUP_NAME.test(inputs[i].name)) {
+                var container = containerOf(inputs[i]);
+                if (container) {
+                    updateContainer(container);
+                }
             }
         }
     }
@@ -76,10 +96,11 @@
         if (!target.name) {
             return;
         }
-        if (TYPE_NAME.test(target.name)) {
-            updateRow(target);
-        } else if (GROUP_NAME.test(target.name)) {
-            updateGroupRow(target);
+        if (TYPE_NAME.test(target.name) || GROUP_NAME.test(target.name)) {
+            var container = containerOf(target);
+            if (container) {
+                updateContainer(container);
+            }
         }
     });
 

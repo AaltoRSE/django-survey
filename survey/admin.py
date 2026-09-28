@@ -3,7 +3,7 @@ from django.contrib import admin
 from django_ace import AceWidget
 
 from survey.actions import make_published
-from survey.admin_impl.question_groups import grouped_rows_without_predecessor
+from survey.admin_impl.question_groups import grouped_rows_without_predecessor, propagate_lead_settings
 from survey.admin_impl.question_order import pinned_question_ids, shift_colliding_questions
 from survey.exporter.csv import Survey2Csv
 from survey.exporter.tex import Survey2Tex
@@ -181,12 +181,6 @@ class QuestionInlineForm(ScalePresetForm):
         depends_on = cleaned_data.get("condition_question")
         if depends_on is not None:
             self._parsed_condition = self._clean_condition(depends_on)
-        if cleaned_data.get("other_option") and cleaned_data.get("type") not in (Question.RADIO, Question.SELECT):
-            self.add_error("other_option", 'The "other" option is only supported on radio and dropdown questions.')
-        if cleaned_data.get("will_not_answer_option") and cleaned_data.get("type") != Question.INTEGER_SCALE:
-            self.add_error(
-                "will_not_answer_option", 'The "will not answer" option is only supported on integer scale questions.'
-            )
         if not cleaned_data.get("group_with_previous") and not (cleaned_data.get("text") or "").strip():
             self.add_error("text", "A standalone question needs a title.")
         return cleaned_data
@@ -219,6 +213,15 @@ class QuestionInlineFormSet(forms.BaseInlineFormSet):
             )
         for row in grouped_rows_without_predecessor(rows):
             row["form"].add_error("group_with_previous", "There is no preceding question in this category to group with.")
+
+    def save(self, commit=True):
+        # The admin hides the answer-defining fields on grouped questions, so
+        # whatever was submitted for a follower is overwritten with its lead's
+        # settings. Server-side so programmatic saves are covered too.
+        saved = super().save(commit)
+        if commit:
+            propagate_lead_settings(self.instance)
+        return saved
 
 
 class QuestionInline(admin.StackedInline):
@@ -275,7 +278,9 @@ class SurveyAdmin(admin.ModelAdmin):
                     inline_form.save_extensions()
             # Make a new or renumbered question take its chosen slot: unchanged
             # questions at that number and above move up by one.
-            shift_colliding_questions(form.instance, pinned_question_ids(formset))
+            if shift_colliding_questions(form.instance, pinned_question_ids(formset)):
+                # Renumbering can change which lead a follower sits under.
+                propagate_lead_settings(form.instance)
 
 
 class AnswerBaseInline(admin.StackedInline):

@@ -1,8 +1,8 @@
 import uuid
 
 from django.contrib.auth.models import AnonymousUser, User
-from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.urls import reverse
 
 from survey.forms import ResponseForm
 from survey.models import Answer, Question, Response
@@ -116,16 +116,40 @@ class WillNotAnswerOptionValidationTests(TestCase):
         question = self._question(Question.INTEGER_SCALE, will_not_answer_option=True, scale_min=0, scale_max=10)
         question.full_clean()
 
-    def test_will_not_answer_on_text_rejected(self):
+    def test_will_not_answer_on_text_allowed(self):
         question = self._question(Question.TEXT, will_not_answer_option=True)
-        with self.assertRaises(ValidationError):
-            question.full_clean()
+        question.full_clean()
 
-    def test_will_not_answer_on_radio_rejected(self):
+    def test_will_not_answer_on_radio_allowed(self):
         question = self._question(Question.RADIO, will_not_answer_option=True)
-        with self.assertRaises(ValidationError):
-            question.full_clean()
+        question.full_clean()
 
     def test_will_not_answer_disabled_on_text_does_not_raise(self):
         question = self._question(Question.TEXT, will_not_answer_option=False)
         question.full_clean()
+
+
+class WillNotAnswerOnTextQuestionTests(TestCase):
+    """The "will not answer" flag is honored on every question type: the
+    checkbox is attached and rendered even for a free-text question."""
+
+    def setUp(self):
+        self.survey = make_survey()
+        self.question = make_question(self.survey, Question.TEXT, order=1, text="Comments")
+        self.question.will_not_answer_option = True
+        self.question.save()
+
+    def test_companion_field_attached_and_rendered(self):
+        form = ResponseForm(survey=self.survey, user=AnonymousUser(), step=0)
+        self.assertIn(f"question_{self.question.pk}_wna", form.fields)
+        page = self.client.get(reverse("survey-detail", kwargs={"id": self.survey.pk}))
+        self.assertContains(page, f"question_{self.question.pk}_wna")
+
+    def test_checked_stores_sentinel_on_required_text_question(self):
+        data = qd({f"question_{self.question.pk}_wna": "on"})
+        form = ResponseForm(data, survey=self.survey, user=AnonymousUser(), step=0)
+        self.assertTrue(form.is_valid(), form.errors)
+        response = form.save()
+        answers = Answer.objects.filter(response=response, question=self.question)
+        self.assertEqual(answers.count(), 1)
+        self.assertEqual(answers.first().body, ResponseForm.WILL_NOT_ANSWER_SENTINEL)

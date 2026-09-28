@@ -206,6 +206,87 @@ class QuestionGroupRenderingTests(TestCase):
         self.assertIn(">Strawberry<", self.html)
 
 
+class GroupRowLabelsOnAllQuestionsRenderingTests(TestCase):
+    """Row labels populated on every question of a group, the lead included.
+
+    Follower questions look like real admin-created grouped questions: the
+    admin hides text/description for grouped questions, so they stay blank.
+    """
+
+    def setUp(self):
+        self.survey = make_survey(display_method=Survey.ALL_IN_ONE_PAGE)
+        self.lead = make_question(self.survey, Question.TEXT, order=1, text="Flavors")
+        self.lead.label = "Vanilla"
+        self.lead.save()
+        self.follower_1 = Question.objects.create(
+            survey=self.survey,
+            text="",
+            order=2,
+            required=False,
+            type=Question.TEXT,
+            group_with_previous=True,
+            label="Chocolate",
+        )
+        self.follower_2 = Question.objects.create(
+            survey=self.survey,
+            text="",
+            order=3,
+            required=False,
+            type=Question.TEXT,
+            group_with_previous=True,
+            label="Strawberry",
+        )
+        response = self.client.get(reverse("survey-detail", kwargs={"id": self.survey.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.html = response.content.decode()
+
+    def test_every_row_label_rendered_when_all_questions_have_labels(self):
+        self.assertIn(">Vanilla<", self.html)
+        self.assertIn(">Chocolate<", self.html)
+        self.assertIn(">Strawberry<", self.html)
+
+
+class GroupRowLabelsPagedSurveyRenderingTests(TestCase):
+    """A grouped question block on a paged (one question per page) survey.
+
+    The rows of a group form a single table and only make sense together, so
+    the page on which the group appears must show every row of the group,
+    each with its row label.
+    """
+
+    def setUp(self):
+        self.survey = make_survey(display_method=Survey.BY_QUESTION)
+        self.lead = make_question(self.survey, Question.TEXT, order=1, text="Flavors")
+        self.lead.label = "Vanilla"
+        self.lead.save()
+        self.follower_1 = Question.objects.create(
+            survey=self.survey,
+            text="",
+            order=2,
+            required=False,
+            type=Question.TEXT,
+            group_with_previous=True,
+            label="Chocolate",
+        )
+        self.follower_2 = Question.objects.create(
+            survey=self.survey,
+            text="",
+            order=3,
+            required=False,
+            type=Question.TEXT,
+            group_with_previous=True,
+            label="Strawberry",
+        )
+        response = self.client.get(reverse("survey-detail", kwargs={"id": self.survey.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.html = response.content.decode()
+
+    def test_every_row_label_rendered_on_the_group_page(self):
+        self.assertIn(">Vanilla<", self.html)
+        self.assertIn(">Chocolate<", self.html)
+        self.assertIn(">Strawberry<", self.html)
+
+
 class HeaderRowsRenderingTests(TestCase):
     def setUp(self):
         self.survey = make_survey(display_method=Survey.ALL_IN_ONE_PAGE)

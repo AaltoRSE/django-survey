@@ -125,17 +125,9 @@ class ResponseForm(models.ModelForm):
         self._questions_by_id = {question.pk: question for question in all_questions}
 
         self._other_initial = {}
-        self._other_questions = {
-            question.pk: question
-            for question in all_questions
-            if question.other_option and question.type in (Question.RADIO, Question.SELECT)
-        }
+        self._other_questions = {question.pk: question for question in all_questions if question.other_option}
         self._wna_initial = set()
-        self._wna_questions = {
-            question.pk: question
-            for question in all_questions
-            if question.will_not_answer_option and question.type == Question.INTEGER_SCALE
-        }
+        self._wna_questions = {question.pk: question for question in all_questions if question.will_not_answer_option}
         # When the form is rebuilt from session data (multi-step finalize in
         # SurveyDetail.treat_valid_form), the stored answer for an "other"-enabled
         # question is the raw free text, which would fail ChoiceField validation.
@@ -178,7 +170,8 @@ class ResponseForm(models.ModelForm):
             if not isinstance(value, str) or value in ("", self.OTHER_SENTINEL):
                 continue
             clean_slugs = {slug for slug, _label in question.get_choices()}
-            if value not in clean_slugs:
+            # A choiceless (free-input) question stores the text directly.
+            if clean_slugs and value not in clean_slugs:
                 data[name] = self.OTHER_SENTINEL
                 data[f"{name}_other"] = value
         return data
@@ -371,9 +364,10 @@ class ResponseForm(models.ModelForm):
                     initial = datetime.datetime.fromisoformat(initial)
             except ValueError:
                 pass
-        if question.pk in self._other_questions and initial not in (None, "", self.OTHER_SENTINEL):
+        if question.pk in self._other_questions and isinstance(initial, str) and initial not in ("", self.OTHER_SENTINEL):
             clean_slugs = {slug for slug, _label in question.get_choices()}
-            if initial not in clean_slugs:
+            # A choiceless (free-input) question keeps the text as its value.
+            if clean_slugs and initial not in clean_slugs:
                 # The stored body is free "other" text, not one of the choice slugs.
                 self._other_initial[question.pk] = initial
                 initial = self.OTHER_SENTINEL
@@ -413,7 +407,10 @@ class ResponseForm(models.ModelForm):
             # select one of the options
             if question.type in [Question.SELECT, Question.SELECT_IMAGE]:
                 qchoices = tuple([("", "-------------")]) + qchoices
-            if question.other_option and qchoices and question.type in (Question.RADIO, Question.SELECT):
+            # Single-valued choice questions get the "other" sentinel as an
+            # extra choice; select-multiple keeps its choices as-is because
+            # clean() merges a single sentinel value only.
+            if question.other_option and qchoices and question.type != Question.SELECT_MULTIPLE:
                 qchoices = tuple(qchoices) + ((ResponseForm.OTHER_SENTINEL, question.other_label),)
         return qchoices
 

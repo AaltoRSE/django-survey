@@ -1,9 +1,9 @@
 import uuid
 
 from django.contrib.auth.models import AnonymousUser, User
-from django.core.exceptions import ValidationError
 from django.http import QueryDict
 from django.test import TestCase
+from django.urls import reverse
 
 from survey.forms import ResponseForm
 from survey.models import Answer, Question, Response, Survey
@@ -151,16 +151,46 @@ class OtherOptionValidationTests(TestCase):
         question = self._question(Question.SELECT, choices="Red,Blue", other_option=True)
         question.full_clean()
 
-    def test_other_on_select_multiple_rejected(self):
+    def test_other_on_select_multiple_allowed(self):
         question = self._question(Question.SELECT_MULTIPLE, choices="Red,Blue", other_option=True)
-        with self.assertRaises(ValidationError):
-            question.full_clean()
+        question.full_clean()
 
-    def test_other_on_text_rejected(self):
+    def test_other_on_text_allowed(self):
         question = self._question(Question.TEXT, other_option=True)
-        with self.assertRaises(ValidationError):
-            question.full_clean()
+        question.full_clean()
 
     def test_other_disabled_on_text_does_not_raise(self):
         question = self._question(Question.TEXT, other_option=False)
         question.full_clean()
+
+
+class OtherOptionOnTextQuestionTests(TestCase):
+    """The "other" flag is honored on every question type: the companion field
+    is attached and rendered even for a free-text question."""
+
+    def setUp(self):
+        self.survey = make_survey()
+        self.question = make_question(self.survey, Question.TEXT, order=1, text="Comments", other_option=True)
+
+    def test_companion_field_attached_and_rendered(self):
+        form = ResponseForm(survey=self.survey, user=AnonymousUser(), step=0)
+        self.assertIn(f"question_{self.question.pk}_other", form.fields)
+        page = self.client.get(reverse("survey-detail", kwargs={"id": self.survey.pk}))
+        self.assertContains(page, f"question_{self.question.pk}_other")
+
+    def test_submitted_text_answer_stored_unchanged(self):
+        data = qd({f"question_{self.question.pk}": "Free text"})
+        form = ResponseForm(data, survey=self.survey, user=AnonymousUser(), step=0)
+        self.assertTrue(form.is_valid(), form.errors)
+        response = form.save()
+        answers = Answer.objects.filter(response=response, question=self.question)
+        self.assertEqual(answers.count(), 1)
+        self.assertEqual(answers.first().body, "Free text")
+
+    def test_reedit_keeps_stored_text_as_the_field_value(self):
+        user = User.objects.create_user(username="reeditor3", password="testpass")
+        response = Response.objects.create(survey=self.survey, user=user, interview_uuid=str(uuid.uuid4()))
+        store_answer(self.question, response, "Free text")
+
+        form = ResponseForm(survey=self.survey, user=user, step=0)
+        self.assertEqual(form.fields[f"question_{self.question.pk}"].initial, "Free text")

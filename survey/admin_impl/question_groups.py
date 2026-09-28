@@ -1,5 +1,44 @@
 """Validate the grouping of questions saved together in the survey admin."""
 
+# Answer-defining fields every question of a group must share; the group's
+# lead question is authoritative for them.
+GROUP_UNIFORM_FIELDS = (
+    "type",
+    "choices",
+    "scale_min",
+    "scale_max",
+    "other_option",
+    "other_label",
+    "will_not_answer_option",
+    "will_not_answer_label",
+)
+
+
+def propagate_lead_settings(survey):
+    """Copy each group lead's answer-defining fields onto the followers of its
+    group, so a group stays uniform no matter what was submitted (the admin
+    hides these fields on followers). Group membership follows question order,
+    per category, like the front end's group_leads().
+
+    :param Survey survey: The survey whose questions to walk.
+    :rtype: list of the follower questions that were changed."""
+    changed = []
+    lead_by_category = {}
+    for question in survey.questions.order_by("order", "id"):
+        lead = lead_by_category.get(question.category_id)
+        if question.group_with_previous and lead is not None:
+            diverging = [
+                field for field in GROUP_UNIFORM_FIELDS if getattr(question, field) != getattr(lead, field)
+            ]
+            if diverging:
+                for field in diverging:
+                    setattr(question, field, getattr(lead, field))
+                question.save(update_fields=diverging)
+                changed.append(question)
+        else:
+            lead_by_category[question.category_id] = question
+    return changed
+
 
 def sort_key(order, pk):
     """Display position of a question row; new rows (pk None) sort after

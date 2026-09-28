@@ -124,13 +124,9 @@ class Question(models.Model):
         _("Scale minimum"), blank=True, null=True, help_text=SCALE_LIMITS_HELP_TEXT
     )
     scale_max = models.IntegerField(_("Scale maximum"), blank=True, null=True)
-    other_option = models.BooleanField(
-        _("Add an 'other' free-text option"), default=False, help_text=_("Only available on radio and select questions.")
-    )
+    other_option = models.BooleanField(_("Add an 'other' free-text option"), default=False)
     other_label = models.CharField(_("Label for the 'other' option"), max_length=200, default="Other, please specify")
-    will_not_answer_option = models.BooleanField(
-        _("Add a 'will not answer' option"), default=False, help_text=_("Only available on integer scale questions.")
-    )
+    will_not_answer_option = models.BooleanField(_("Add a 'will not answer' option"), default=False)
     will_not_answer_label = models.CharField(
         _("Label for the 'will not answer' option"), max_length=200, default="I will not answer"
     )
@@ -148,10 +144,6 @@ class Question(models.Model):
     def clean(self):
         if not self.group_with_previous and not self.text.strip():
             raise ValidationError({"text": "A standalone question needs a title."})
-        if self.other_option and self.type not in (Question.RADIO, Question.SELECT):
-            raise ValidationError("The 'other' option is only available on radio/select questions.")
-        if self.will_not_answer_option and self.type != Question.INTEGER_SCALE:
-            raise ValidationError("The 'will not answer' option is only available on integer scale questions.")
         if self.type == Question.INTEGER_SCALE:
             validate_scale_limits(self.scale_min, self.scale_max)
 
