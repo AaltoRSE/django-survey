@@ -43,7 +43,14 @@
                 {% else %}
                 <div class="{{ form.field.row_class }}">
 	            {% for field in form %}
+	            {% if form.field.widget_label %}
+	            <label class="{{ form.field.option_class }}">
+	                {{ field }}
+	                <span class="survey-question-option-label">{{ form.field.widget_label }}</span>
+	            </label>
+	            {% else %}
 		    {{ field }} <br>
+	            {% endif %}
                 {% endfor%}
                 </div>
                 {% endif %}

@@ -86,6 +86,21 @@ class OtherOptionTests(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn(f"question_{self.question.pk}", form.errors)
 
+    def test_other_label_shown_next_to_the_text_input(self):
+        self.question.other_label = "Something else"
+        self.question.save()
+        page = self.client.get(reverse("survey-detail", kwargs={"id": self.survey.pk}))
+        self.assertContains(page, f"question-{self.question.pk}-other-option")
+        # Once as the sentinel radio choice, once next to the companion input.
+        self.assertContains(page, '<span class="survey-question-option-label">Something else</span>', count=2)
+
+    def test_plain_question_input_not_wrapped_in_a_label(self):
+        survey = make_survey(name="Plain survey")
+        question = make_question(survey, Question.TEXT, order=1, text="Comments")
+        page = self.client.get(reverse("survey-detail", kwargs={"id": survey.pk}))
+        self.assertContains(page, f'name="question_{question.pk}"')
+        self.assertNotContains(page, "survey-question-option-label")
+
     def test_regular_choice_still_stores_normally(self):
         data = qd({f"question_{self.question.pk}": "red"})
         form = ResponseForm(data, survey=self.survey, user=AnonymousUser(), step=0)

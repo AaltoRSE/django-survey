@@ -507,6 +507,12 @@ class ResponseForm(models.ModelForm):
             other_field.group_title = ""
             other_field.group_description = ""
             other_field.group_header_rows = []
+            # The label renders next to the input (answer cell), not as a row
+            # label; see the widget_label branch in question.html.
+            other_field.row_label = ""
+            other_field.widget_label = question.other_label
+            other_field.show_required = False
+            other_field.as_choice_list = False
             other_initial = self._other_initial.get(question.pk)
             if other_initial is not None:
                 other_field.initial = other_initial
@@ -531,6 +537,12 @@ class ResponseForm(models.ModelForm):
             wna_field.group_title = ""
             wna_field.group_description = ""
             wna_field.group_header_rows = []
+            # The label renders next to the checkbox (answer cell), not as a
+            # row label; see the widget_label branch in question.html.
+            wna_field.row_label = ""
+            wna_field.widget_label = question.will_not_answer_label
+            wna_field.show_required = False
+            wna_field.as_choice_list = False
             if question.pk in self._wna_initial:
                 wna_field.initial = True
             self.fields[f"question_{question.pk}_wna"] = wna_field

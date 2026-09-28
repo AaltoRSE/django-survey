@@ -38,6 +38,13 @@ class WillNotAnswerOptionTests(TestCase):
         self.assertEqual(answers.count(), 1)
         self.assertEqual(answers.first().body, ResponseForm.WILL_NOT_ANSWER_SENTINEL)
 
+    def test_label_shown_next_to_the_checkbox(self):
+        self.question.will_not_answer_label = "No answer"
+        self.question.save()
+        page = self.client.get(reverse("survey-detail", kwargs={"id": self.survey.pk}))
+        self.assertContains(page, f"question-{self.question.pk}-wna-option")
+        self.assertContains(page, '<span class="survey-question-option-label">No answer</span>')
+
     def test_checked_wins_over_a_scale_value_also_posted(self):
         data = qd(
             {
