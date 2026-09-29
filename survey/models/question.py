@@ -147,6 +147,10 @@ class Question(models.Model):
         ordering = ("survey", "order")
 
     def save(self, *args, **kwargs):
+        if self.group_with_previous:
+            # A question shown inside the preceding question's group cannot
+            # be a group header.
+            self.group_header = False
         if self.type in [Question.RADIO, Question.SELECT, Question.SELECT_MULTIPLE]:
             validate_choices(self.choices)
         super().save(*args, **kwargs)

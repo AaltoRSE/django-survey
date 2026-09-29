@@ -28,13 +28,18 @@ def propagate_lead_settings(survey):
     for question in survey.questions.order_by("order", "id"):
         lead = lead_by_category.get(question.category_id)
         if question.group_with_previous and lead is not None:
-            diverging = [
+            updates = [
                 field for field in GROUP_UNIFORM_FIELDS if getattr(question, field) != getattr(lead, field)
             ]
-            if diverging:
-                for field in diverging:
-                    setattr(question, field, getattr(lead, field))
-                question.save(update_fields=diverging)
+            for field in updates:
+                setattr(question, field, getattr(lead, field))
+            if question.group_header:
+                # A follower cannot be a group header: forced off, not copied
+                # from the lead, so group_header stays out of GROUP_UNIFORM_FIELDS.
+                question.group_header = False
+                updates.append("group_header")
+            if updates:
+                question.save(update_fields=updates)
                 changed.append(question)
         else:
             lead_by_category[question.category_id] = question

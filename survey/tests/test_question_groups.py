@@ -332,6 +332,21 @@ class GroupHeaderFieldDefaultsTests(TestCase):
         question = make_question(make_survey(), Question.TEXT, order=1, text="Q")
         self.assertFalse(question.hide_answer_labels)
 
+    def test_follower_cannot_be_a_group_header(self):
+        survey = make_survey()
+        make_question(survey, Question.TEXT, order=1, text="Lead")
+        follower = Question.objects.create(
+            survey=survey,
+            text="",
+            order=2,
+            required=False,
+            type=Question.TEXT,
+            group_with_previous=True,
+            group_header=True,
+        )
+        follower.refresh_from_db()
+        self.assertFalse(follower.group_header)
+
 
 class HideAnswerLabelsRenderingTests(TestCase):
     """hide_answer_labels on the group's lead removes the option-label texts

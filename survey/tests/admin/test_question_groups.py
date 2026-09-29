@@ -136,6 +136,18 @@ class GroupLeadSettingsPropagationTests(TestCase):
         self.assertTrue(follower.will_not_answer_option)
         self.assertEqual(follower.will_not_answer_label, "No answer")
 
+    def test_follower_group_header_forced_off_on_save(self):
+        # The admin hides the checkbox on followers, so a stale "on" can
+        # still be POSTed; the saved follower must not keep it.
+        self.save_formset(
+            [
+                {"text": "Colors", "order": "1", "type": "text", "group_header": "on"},
+                {"order": "2", "type": "text", "group_with_previous": "on", "label": "Row 2", "group_header": "on"},
+            ]
+        )
+        self.assertTrue(self.survey.questions.get(order=1).group_header)
+        self.assertFalse(self.survey.questions.get(order=2).group_header)
+
     def test_hide_answer_labels_propagates_to_followers(self):
         self.save_formset(
             [
@@ -245,6 +257,18 @@ class PropagateLeadSettingsTests(TestCase):
         self.assertFalse(follower.will_not_answer_option)
         lead.refresh_from_db()
         self.assertFalse(lead.will_not_answer_option)
+
+    def test_follower_group_header_forced_off(self):
+        from survey.models import Question
+
+        self.question(1)
+        follower = self.question(2, grouped=True)
+        # A row predating the follower rule, written without Question.save().
+        Question.objects.filter(pk=follower.pk).update(group_header=True)
+        changed = propagate_lead_settings(self.survey)
+        self.assertEqual([question.pk for question in changed], [follower.pk])
+        follower.refresh_from_db()
+        self.assertFalse(follower.group_header)
 
     def test_uniform_group_left_alone(self):
         from survey.models import Question
