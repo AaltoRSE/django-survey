@@ -11,6 +11,7 @@ GROUP_UNIFORM_FIELDS = (
     "other_label",
     "will_not_answer_option",
     "will_not_answer_label",
+    "hide_answer_labels",
 )
 
 

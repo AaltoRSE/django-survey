@@ -36,7 +36,7 @@
                 {% for choice in form %}
                     <label class="{{ form.field.option_class }} {{ form.field.option_number_class_prefix }}{{ forloop.counter }}">
                         {{ choice.tag }}
-                        <span class="survey-question-option-label">{{ choice.choice_label }}</span>
+                        {% if not form.field.group_hide_answer_labels %}<span class="survey-question-option-label">{{ choice.choice_label }}</span>{% endif %}
                     </label>
                 {% endfor %}
                 </div>

@@ -12,13 +12,16 @@
 
     var TYPE_NAME = /^(questions-(\d+|__prefix__)-)?type$/;
     var GROUP_NAME = /^(questions-(\d+|__prefix__)-)?group_with_previous$/;
+    var GROUP_HEADER_NAME = /^(questions-(\d+|__prefix__)-)?group_header$/;
 
     // Fields ignored for a question grouped with the preceding one: the
     // group's title, description and answer-defining settings come from the
-    // question that opens the group.
+    // question that opens the group. The row label is deliberately absent:
+    // it is how a follower gets its row text.
     var GROUP_HIDDEN_FIELDS = [
         "text",
         "description",
+        "group_header",
         "header_rows",
         "type",
         "choices",
@@ -29,7 +32,12 @@
         "other_label",
         "will_not_answer_option",
         "will_not_answer_label",
+        "hide_answer_labels",
     ];
+
+    // Header-only fields, revealed by the "Group header" checkbox on a
+    // question that is not grouped with the preceding one.
+    var HEADER_ONLY_FIELDS = ["header_rows", "label", "hide_answer_labels"];
 
     // Field name -> types that show it. Fields absent from a given page
     // simply resolve to no matching row and are skipped. The "other" and
@@ -55,21 +63,36 @@
     function updateContainer(container) {
         var typeSelect = findInput(container, TYPE_NAME);
         var groupCheckbox = findInput(container, GROUP_NAME);
+        var headerCheckbox = findInput(container, GROUP_HEADER_NAME);
         var grouped = Boolean(groupCheckbox && groupCheckbox.checked);
+        // A page without the checkbox shows everything.
+        var withHeader = !headerCheckbox || headerCheckbox.checked;
         var names = GROUP_HIDDEN_FIELDS.slice();
-        for (var name in FIELD_TYPES) {
+        var name;
+        for (var i = 0; i < HEADER_ONLY_FIELDS.length; i++) {
+            if (names.indexOf(HEADER_ONLY_FIELDS[i]) === -1) {
+                names.push(HEADER_ONLY_FIELDS[i]);
+            }
+        }
+        for (name in FIELD_TYPES) {
             if (FIELD_TYPES.hasOwnProperty(name) && names.indexOf(name) === -1) {
                 names.push(name);
             }
         }
-        for (var i = 0; i < names.length; i++) {
-            var row = container.querySelector(".form-row.field-" + names[i]);
+        for (var j = 0; j < names.length; j++) {
+            name = names[j];
+            var row = container.querySelector(".form-row.field-" + name);
             if (!row) {
                 continue;
             }
-            var hidden = grouped && GROUP_HIDDEN_FIELDS.indexOf(names[i]) !== -1;
-            if (!hidden && FIELD_TYPES[names[i]] && typeSelect) {
-                hidden = FIELD_TYPES[names[i]].indexOf(typeSelect.value) === -1;
+            var hidden;
+            if (grouped) {
+                hidden = GROUP_HIDDEN_FIELDS.indexOf(name) !== -1;
+            } else {
+                hidden = !withHeader && HEADER_ONLY_FIELDS.indexOf(name) !== -1;
+                if (!hidden && FIELD_TYPES[name] && typeSelect) {
+                    hidden = FIELD_TYPES[name].indexOf(typeSelect.value) === -1;
+                }
             }
             row.style.display = hidden ? "none" : "";
         }
@@ -79,10 +102,14 @@
         return input.closest(".inline-related") || input.closest("form");
     }
 
+    function isTrigger(name) {
+        return TYPE_NAME.test(name) || GROUP_NAME.test(name) || GROUP_HEADER_NAME.test(name);
+    }
+
     function updateAll(root) {
         var inputs = (root || document).querySelectorAll("[name]");
         for (var i = 0; i < inputs.length; i++) {
-            if (TYPE_NAME.test(inputs[i].name) || GROUP_NAME.test(inputs[i].name)) {
+            if (isTrigger(inputs[i].name)) {
                 var container = containerOf(inputs[i]);
                 if (container) {
                     updateContainer(container);
@@ -93,14 +120,12 @@
 
     document.addEventListener("change", function (event) {
         var target = event.target;
-        if (!target.name) {
+        if (!target.name || !isTrigger(target.name)) {
             return;
         }
-        if (TYPE_NAME.test(target.name) || GROUP_NAME.test(target.name)) {
-            var container = containerOf(target);
-            if (container) {
-                updateContainer(container);
-            }
+        var container = containerOf(target);
+        if (container) {
+            updateContainer(container);
         }
     });
 

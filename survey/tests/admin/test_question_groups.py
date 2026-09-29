@@ -136,6 +136,22 @@ class GroupLeadSettingsPropagationTests(TestCase):
         self.assertTrue(follower.will_not_answer_option)
         self.assertEqual(follower.will_not_answer_label, "No answer")
 
+    def test_hide_answer_labels_propagates_to_followers(self):
+        self.save_formset(
+            [
+                {
+                    "text": "Ratings",
+                    "order": "1",
+                    "type": "radio",
+                    "choices": "Red,Blue",
+                    "hide_answer_labels": "on",
+                },
+                {"order": "2", "type": "text", "group_with_previous": "on", "label": "Row 2"},
+            ]
+        )
+        follower = self.survey.questions.get(order=2)
+        self.assertTrue(follower.hide_answer_labels)
+
     def test_scale_settings_propagate_to_followers(self):
         from survey.models import Question
 
@@ -150,6 +166,51 @@ class GroupLeadSettingsPropagationTests(TestCase):
             follower = self.survey.questions.get(order=order)
             self.assertEqual(follower.type, Question.INTEGER_SCALE)
             self.assertEqual((follower.scale_min, follower.scale_max), (0, 5))
+
+
+class GroupHeaderAdminFormTests(TestCase):
+    """The group-header toggle and its header-only fields are on the inline;
+    hiding and revealing them is admin_question_type.js's job."""
+
+    def test_the_inline_offers_the_group_header_fields(self):
+        from unittest import mock
+
+        from django.contrib.admin.sites import AdminSite
+
+        from survey.admin import QuestionInline
+        from survey.models import Survey
+
+        survey = Survey.objects.create(name="S", description="d", need_logged_user=False)
+        formset = QuestionInline(Survey, AdminSite()).get_formset(mock.Mock(), survey)
+        for name in ("group_header", "header_rows", "label", "hide_answer_labels"):
+            self.assertIn(name, formset.form.base_fields)
+
+
+class QuestionTypeJsFieldListsTests(TestCase):
+    """The live toggling is browser behavior; the field-list constants that
+    drive it are what the server can check."""
+
+    @staticmethod
+    def field_list(list_name):
+        import re
+        from pathlib import Path
+
+        import survey
+
+        source = (Path(survey.__file__).parent / "static/survey/js/admin_question_type.js").read_text()
+        return re.search(list_name + r" = \[(.*?)\]", source, re.S).group(1)
+
+    def test_followers_hide_the_group_level_fields_but_not_the_row_label(self):
+        group_hidden = self.field_list("GROUP_HIDDEN_FIELDS")
+        self.assertIn('"group_header"', group_hidden)
+        self.assertIn('"hide_answer_labels"', group_hidden)
+        self.assertIn('"header_rows"', group_hidden)
+        self.assertNotIn('"label"', group_hidden)
+
+    def test_header_only_fields_follow_the_group_header_checkbox(self):
+        header_only = self.field_list("HEADER_ONLY_FIELDS")
+        for name in ('"header_rows"', '"label"', '"hide_answer_labels"'):
+            self.assertIn(name, header_only)
 
 
 class PropagateLeadSettingsTests(TestCase):

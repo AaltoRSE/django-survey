@@ -323,6 +323,55 @@ class HeaderRowsRenderingTests(TestCase):
         self.assertIn("survey-question-line-even", self.html)
 
 
+class GroupHeaderFieldDefaultsTests(TestCase):
+    def test_group_header_defaults_to_true(self):
+        question = make_question(make_survey(), Question.TEXT, order=1, text="Q")
+        self.assertTrue(question.group_header)
+
+    def test_hide_answer_labels_defaults_to_false(self):
+        question = make_question(make_survey(), Question.TEXT, order=1, text="Q")
+        self.assertFalse(question.hide_answer_labels)
+
+
+class HideAnswerLabelsRenderingTests(TestCase):
+    """hide_answer_labels on the group's lead removes the option-label texts
+    for every row of the group; header rows remain as the replacement."""
+
+    def render(self, hide):
+        survey = make_survey(display_method=Survey.ALL_IN_ONE_PAGE)
+        lead = make_question(survey, Question.RADIO, order=1, choices="Yes,No", text="Ratings")
+        lead.header_rows = "Yes,No"
+        lead.hide_answer_labels = hide
+        lead.save()
+        # The follower keeps the field's default: the flag is read from the lead.
+        Question.objects.create(
+            survey=survey,
+            text="",
+            order=2,
+            required=False,
+            type=Question.RADIO,
+            choices="Yes,No",
+            group_with_previous=True,
+            label="Row 2",
+        )
+        response = self.client.get(reverse("survey-detail", kwargs={"id": survey.pk}))
+        self.assertEqual(response.status_code, 200)
+        return response.content.decode()
+
+    def test_option_labels_hidden_for_the_whole_group(self):
+        html = self.render(hide=True)
+        self.assertNotIn("survey-question-option-label", html)
+        self.assertIn(">Row 2<", html)
+
+    def test_header_rows_still_rendered(self):
+        html = self.render(hide=True)
+        self.assertIn("survey-question-header-cell", html)
+
+    def test_option_labels_rendered_without_the_flag(self):
+        html = self.render(hide=False)
+        self.assertIn('<span class="survey-question-option-label">Yes</span>', html)
+
+
 class QuestionValidationTests(TestCase):
     def setUp(self):
         self.survey = make_survey()

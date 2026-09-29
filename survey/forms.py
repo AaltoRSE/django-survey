@@ -475,6 +475,7 @@ class ResponseForm(models.ModelForm):
         field.group_table_class = lead_css_classes["table_class"]
         field.group_description_class = lead_css_classes["description_class"]
         field.group_header_rows = parse_header_rows(lead.header_rows, settings.CHOICES_SEPARATOR)
+        field.group_hide_answer_labels = lead.hide_answer_labels
         field.group_header_line_class = lead_css_classes["header_line_class"]
         field.group_header_row_class = lead_css_classes["header_row_class"]
         field.group_header_cell_class = lead_css_classes["header_cell_class"]
@@ -507,6 +508,7 @@ class ResponseForm(models.ModelForm):
             other_field.group_title = ""
             other_field.group_description = ""
             other_field.group_header_rows = []
+            other_field.group_hide_answer_labels = False
             # The label renders next to the input (answer cell), not as a row
             # label; see the widget_label branch in question.html.
             other_field.row_label = ""
@@ -537,6 +539,7 @@ class ResponseForm(models.ModelForm):
             wna_field.group_title = ""
             wna_field.group_description = ""
             wna_field.group_header_rows = []
+            wna_field.group_hide_answer_labels = False
             # The label renders next to the checkbox (answer cell), not as a
             # row label; see the widget_label branch in question.html.
             wna_field.row_label = ""

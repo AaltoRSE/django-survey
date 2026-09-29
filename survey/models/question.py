@@ -107,6 +107,16 @@ class Question(models.Model):
         help_text=_("Label rows shown above the answers of this question's group. One row per line, cells separated by commas."),
     )
     label = models.CharField(_("Row label"), max_length=200, blank=True, default="")
+    group_header = models.BooleanField(
+        _("Group header"),
+        default=True,
+        help_text=_("Show the header-only fields: header rows, row label and answer-label hiding."),
+    )
+    hide_answer_labels = models.BooleanField(
+        _("Hide answer labels"),
+        default=False,
+        help_text=_("Do not show the label next to each answer option of this question's group; header rows can label the options instead."),
+    )
     group_with_previous = models.BooleanField(
         _("Group with preceding question"),
         default=False,
