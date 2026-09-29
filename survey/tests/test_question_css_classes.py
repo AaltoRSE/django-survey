@@ -47,10 +47,10 @@ class QuestionCssClassesRenderingTests(TestCase):
 
     def test_radio_question_has_type_prefixed_and_pk_specific_classes(self):
         self.assertIn("radio-question-option", self.html)
-        self.assertIn("radio-question-row", self.html)
+        self.assertIn("radio-question-option-cell", self.html)
         self.assertIn("radio-question-label", self.html)
         self.assertIn(f"question-{self.radio_q.pk}-option", self.html)
-        self.assertIn(f"question-{self.radio_q.pk}-row", self.html)
+        self.assertIn(f"question-{self.radio_q.pk}-option-cell", self.html)
         self.assertIn(f"question-{self.radio_q.pk}-label", self.html)
 
     def test_each_option_has_a_numbered_pk_specific_class(self):
@@ -60,9 +60,9 @@ class QuestionCssClassesRenderingTests(TestCase):
         self.assertIn(f"question-{self.scale_q.pk}-option-11", self.html)
 
     def test_integer_scale_question_has_type_prefixed_and_pk_specific_classes(self):
-        self.assertIn("integer-scale-question-row", self.html)
+        self.assertIn("integer-scale-question-option-cell", self.html)
         self.assertIn("integer-scale-question-option", self.html)
-        self.assertIn(f"question-{self.scale_q.pk}-row", self.html)
+        self.assertIn(f"question-{self.scale_q.pk}-option-cell", self.html)
         self.assertIn(f"question-{self.scale_q.pk}-option", self.html)
 
     def test_legacy_likert_classes_are_gone(self):

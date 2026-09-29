@@ -9,11 +9,7 @@
             {% for row in form.field.group_header_rows %}
             <tr class="{{ form.field.group_header_line_class }}">
                 <td class="{{ form.field.label_cell_class }}"></td>
-                <td class="{{ form.field.answer_cell_class }}">
-                    <div class="{{ form.field.group_header_row_class }}">
-                    {% for cell in row %}<span class="{{ form.field.group_header_cell_class }} {{ form.field.group_header_cell_number_class_prefix }}{{ forloop.counter }}">{{ cell }}</span>{% endfor %}
-                    </div>
-                </td>
+                {% for cell in row %}<th scope="col" class="{{ form.field.group_header_cell_class }} {{ form.field.group_header_cell_number_class_prefix }}{{ forloop.counter }}">{{ cell }}</th>{% endfor %}
             </tr>
             {% endfor %}
         {% endif %}
@@ -23,24 +19,29 @@
 	            {% if form.field.row_label and form.field.show_required|default:form.field.required %}
 	                <span class="glyphicon glyphicon-asterisk {{ form.field.required_class }}"> </span>
 	            {% endif %}
+                {% if form.field.as_choice_list %}
+	            <span class="help-inline {{ form.field.errors_class }}">
+	                <strong> {% for error in  form.errors %}{{ error }}{% endfor %} </strong>
+	            </span>
+                {% endif %}
             </td>
-            <td class="{{ form.field.answer_cell_class }}">
+            {% if form.field.as_choice_list %}
+            {% for choice in form %}
+            <td class="{{ form.field.option_cell_class }} {{ form.field.option_cell_number_class_prefix }}{{ forloop.counter }}">
+                <label class="{{ form.field.option_class }} {{ form.field.option_number_class_prefix }}{{ forloop.counter }}">
+                    {{ choice.tag }}
+                    {% if not form.field.group_hide_answer_labels %}<span class="survey-question-option-label">{{ choice.choice_label }}</span>{% endif %}
+                </label>
+            </td>
+            {% endfor %}
+            {% else %}
+            <td class="{{ form.field.answer_cell_class }}"{% if form.field.group_option_count > 1 %} colspan="{{ form.field.group_option_count }}"{% endif %}>
 	            <span class="help-inline {{ form.field.errors_class }}">
 	                <strong> {% for error in  form.errors %}{{ error }}{% endfor %} </strong>
 	            </span> <br>
                 {% if form.field.widget.input_type == 'select' %}
                 <select name="{{form.name}}"{% if form.field.widget.attrs.disabled %} disabled{% endif %}>
                 {% endif %}
-                {% if form.field.as_choice_list %}
-                <div class="{{ form.field.row_class }}">
-                {% for choice in form %}
-                    <label class="{{ form.field.option_class }} {{ form.field.option_number_class_prefix }}{{ forloop.counter }}">
-                        {{ choice.tag }}
-                        {% if not form.field.group_hide_answer_labels %}<span class="survey-question-option-label">{{ choice.choice_label }}</span>{% endif %}
-                    </label>
-                {% endfor %}
-                </div>
-                {% else %}
                 <div class="{{ form.field.row_class }}">
 	            {% for field in form %}
 	            {% if form.field.widget_label %}
@@ -53,11 +54,11 @@
 	            {% endif %}
                 {% endfor%}
                 </div>
-                {% endif %}
                 {% if form.field.widget.input_type == 'select' %}
                 </select>
                 {% endif %}
             </td>
+            {% endif %}
         </tr>
         {% if form.field.ends_group %}
             </tbody>

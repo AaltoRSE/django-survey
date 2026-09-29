@@ -401,7 +401,7 @@ class IntegerScaleRedisplayTests(TestCase):
 
 
 class IntegerScaleTemplateTests(TestCase):
-    """The integer scale renders its options as one row of type-classed options."""
+    """The integer scale renders its options as one table cell per step."""
 
     def setUp(self):
         self.survey = make_survey()
@@ -415,7 +415,7 @@ class IntegerScaleTemplateTests(TestCase):
 
     def test_scale_question_is_rendered_with_the_horizontal_scale_layout(self):
         html = self._render()
-        self.assertIn("integer-scale-question-row", html)
+        self.assertIn("integer-scale-question-option-cell", html)
         self.assertEqual(html.count("integer-scale-question-option "), 11)
 
     def test_every_step_of_the_scale_is_rendered_as_a_radio_input(self):

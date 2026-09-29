@@ -13,9 +13,11 @@
  *   .survey-question-table        the table of answer lines inside the group
  *   .survey-question-line         one answer line (question-<pk>-line)
  *   .survey-question-label-cell   the cell holding the line's label
- *   .survey-question-answer-cell  the cell holding the answer form
+ *   .survey-question-option-cell  one option's cell (also question-<pk>-option-cell-<n>);
+ *                                 header cells (.survey-question-header-cell) share these columns
+ *   .survey-question-answer-cell  the single cell of a non-choice answer, spanning the option columns
  *   .survey-question-label        the label text
- *   .survey-question-row          the container holding the options
+ *   .survey-question-row          the container holding a non-choice answer's input
  *   .survey-question-option       one option (also question-<pk>-option-<n>)
  */
 
@@ -54,6 +56,7 @@
     border-top: 1px solid #e5e5e5;
 }
 .survey-question-label-cell,
+.survey-question-option-cell,
 .survey-question-answer-cell {
     padding: 0 0.5em 0.6em;
     vertical-align: middle;
@@ -66,15 +69,12 @@
     font-weight: bold;
 }
 
-/* Header rows (e.g. "0,1,2\nlow,,high") above a group's answer lines: give
- * the cells equal width and alternate the answer lines' backgrounds so long
- * groups stay easy to scan. */
-.survey-question-header-row {
-    display: flex;
-}
+/* Header rows (e.g. "0,1,2\nlow,,high") sit in the same table columns as the
+ * options; alternate the answer lines' backgrounds so long groups stay easy
+ * to scan. */
 .survey-question-header-cell {
-    flex: 1;
     text-align: center;
+    font-weight: normal;
 }
 .survey-question-line-even {
     background: #f7f7f7;

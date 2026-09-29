@@ -307,10 +307,9 @@ class HeaderRowsRenderingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.html = response.content.decode()
 
-    def test_header_line_row_and_cell_classes_present(self):
+    def test_header_line_and_cell_classes_present(self):
         self.assertIn("survey-question-header-line", self.html)
-        self.assertIn("survey-question-header-row", self.html)
-        self.assertIn("survey-question-header-cell", self.html)
+        self.assertIn('<th scope="col" class="survey-question-header-cell', self.html)
 
     def test_header_cell_has_numbered_pk_specific_class(self):
         self.assertIn(f"question-{self.lead.pk}-header-cell-1", self.html)
@@ -321,6 +320,50 @@ class HeaderRowsRenderingTests(TestCase):
     def test_row_parity_classes_present(self):
         self.assertIn("survey-question-line-odd", self.html)
         self.assertIn("survey-question-line-even", self.html)
+
+
+class GroupTableStructureTests(TestCase):
+    """Choice groups render as a real table: one cell per option in columns
+    shared with the header cells, single-input rows spanning those columns."""
+
+    def setUp(self):
+        self.survey = make_survey(display_method=Survey.ALL_IN_ONE_PAGE)
+        self.lead = make_question(self.survey, Question.RADIO, order=1, choices="Red,Green,Blue", text="Colors")
+        self.lead.header_rows = "one,two"
+        self.lead.will_not_answer_option = True
+        self.lead.save()
+        self.follower = Question.objects.create(
+            survey=self.survey,
+            text="",
+            order=2,
+            required=False,
+            type=Question.RADIO,
+            choices="Red,Green,Blue",
+            group_with_previous=True,
+            label="Row 2",
+        )
+        response = self.client.get(reverse("survey-detail", kwargs={"id": self.survey.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.html = response.content.decode()
+
+    def test_one_cell_per_option(self):
+        self.assertEqual(self.html.count(f"question-{self.lead.pk}-option-cell-"), 3)
+        self.assertEqual(self.html.count(f"question-{self.follower.pk}-option-cell-"), 3)
+
+    def test_short_header_row_padded_to_the_option_columns(self):
+        # "one,two" against three option columns: the third header cell is
+        # rendered empty so the columns stay shared.
+        self.assertEqual(self.html.count('<th scope="col"'), 3)
+        self.assertIn(f"question-{self.lead.pk}-header-cell-3", self.html)
+
+    def test_companion_row_spans_the_option_columns(self):
+        self.assertIn(f'question-{self.lead.pk}-wna-answer-cell" colspan="3"', self.html)
+
+    def test_standalone_non_choice_question_has_no_colspan(self):
+        survey = make_survey(name="Plain")
+        make_question(survey, Question.TEXT, order=1, text="Comments")
+        response = self.client.get(reverse("survey-detail", kwargs={"id": survey.pk}))
+        self.assertNotContains(response, "colspan")
 
 
 class GroupHeaderFieldDefaultsTests(TestCase):
@@ -377,6 +420,8 @@ class HideAnswerLabelsRenderingTests(TestCase):
         html = self.render(hide=True)
         self.assertNotIn("survey-question-option-label", html)
         self.assertIn(">Row 2<", html)
+        # The option cells stay; only the label spans inside them go.
+        self.assertIn("survey-question-option-cell", html)
 
     def test_header_rows_still_rendered(self):
         html = self.render(hide=True)

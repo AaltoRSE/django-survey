@@ -9,21 +9,22 @@
 .survey-question-errors {
   color: red;
 }
-/* 5-point likert and integer scale options lie in one horizontal row with
- * the label under each button. */
-.likert-5-question-row,
-.integer-scale-question-row {
-  display: flex;
-  gap: 0.25em;
-  align-items: flex-start;
+/* Choice options occupy one table cell each; header cells share the same
+ * columns. */
+.survey-question-option-cell {
+  text-align: center;
+  vertical-align: top;
 }
+.survey-question-header-cell {
+  text-align: center;
+  font-weight: normal;
+}
+/* 5-point likert and integer scale keep the label under each button. */
 .likert-5-question-option,
 .integer-scale-question-option {
   display: flex;
   flex-direction: column;
   align-items: center;
-  flex: 1 1 0;
-  max-width: 9em;
   margin: 0;
   text-align: center;
   font-weight: normal;

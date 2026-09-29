@@ -31,8 +31,10 @@ def question_css_classes(qtype, pk, suffix=""):
         "option_number_class_prefix", "question_class" (the element wrapping a
         question group, taken from its first question), "line_class" (one answer
         row), "table_class", "label_cell_class", "answer_cell_class", "title_class", "description_class", "required_class", "errors_class",
-        "header_line_class" (a header row's <tr>), "header_row_class" (the div
-        wrapping a header row's cells), "header_cell_class" (one header cell),
+        "option_cell_class" (the table cell holding one option) with
+        "option_cell_number_class_prefix",
+        "header_line_class" (a header row's <tr>), "header_cell_class" (one
+        header cell),
         "header_cell_number_class_prefix" keys. The template appends the 1-based
         option number to "option_number_class_prefix" to get e.g.
         "question-<pk>-option-2", and similarly the 1-based cell number to
@@ -44,6 +46,8 @@ def question_css_classes(qtype, pk, suffix=""):
         "row_class": f"survey-question-row {qtype}-question-row question-{pk_segment}-row",
         "option_class": f"survey-question-option {qtype}-question-option question-{pk_segment}-option",
         "option_number_class_prefix": f"question-{pk_segment}-option-",
+        "option_cell_class": f"survey-question-option-cell {qtype}-question-option-cell question-{pk_segment}-option-cell",
+        "option_cell_number_class_prefix": f"question-{pk_segment}-option-cell-",
         "question_class": f"survey-question {qtype}-question question-{pk_segment}",
         "line_class": f"survey-question-line {qtype}-question-line question-{pk_segment}-line",
         "table_class": f"survey-question-table {qtype}-question-table question-{pk_segment}-table",
@@ -58,7 +62,6 @@ def question_css_classes(qtype, pk, suffix=""):
         "required_class": f"survey-question-required {qtype}-question-required question-{pk_segment}-required",
         "errors_class": f"survey-question-errors {qtype}-question-errors question-{pk_segment}-errors",
         "header_line_class": f"survey-question-header-line {qtype}-question-header-line question-{pk_segment}-header-line",
-        "header_row_class": f"survey-question-header-row {qtype}-question-header-row question-{pk_segment}-header-row",
         "header_cell_class": f"survey-question-header-cell {qtype}-question-header-cell question-{pk_segment}-header-cell",
         "header_cell_number_class_prefix": f"question-{pk_segment}-header-cell-",
     }
@@ -414,6 +417,23 @@ class ResponseForm(models.ModelForm):
                 qchoices = tuple(qchoices) + ((ResponseForm.OTHER_SENTINEL, question.other_label),)
         return qchoices
 
+    @classmethod
+    def get_option_column_count(cls, lead):
+        """Return the number of option columns in a group's table.
+
+        Group uniformity keeps every question of a group on the lead's type
+        and choices, so the lead defines the columns: one per option for
+        questions rendered as a choice list, otherwise a single answer
+        column.
+
+        :param Question lead: the question that opens the group.
+        :rtype: int"""
+        if lead.type in (Question.RADIO, Question.SELECT_MULTIPLE, Question.LIKERT_5, Question.INTEGER_SCALE):
+            choices = cls.get_question_choices(lead)
+            if choices:
+                return len(choices)
+        return 1
+
     def get_question_field(self, question, **kwargs):
         """Return the field we should use in our form.
 
@@ -460,6 +480,8 @@ class ResponseForm(models.ModelForm):
         field.row_class = css_classes["row_class"]
         field.option_class = css_classes["option_class"]
         field.option_number_class_prefix = css_classes["option_number_class_prefix"]
+        field.option_cell_class = css_classes["option_cell_class"]
+        field.option_cell_number_class_prefix = css_classes["option_cell_number_class_prefix"]
         field.line_class = css_classes["line_class"]
         field.label_cell_class = css_classes["label_cell_class"]
         field.answer_cell_class = css_classes["answer_cell_class"]
@@ -474,10 +496,15 @@ class ResponseForm(models.ModelForm):
         field.group_title_class = lead_css_classes["title_class"]
         field.group_table_class = lead_css_classes["table_class"]
         field.group_description_class = lead_css_classes["description_class"]
+        option_count = self.get_option_column_count(lead)
+        field.group_option_count = option_count
         field.group_header_rows = parse_header_rows(lead.header_rows, settings.CHOICES_SEPARATOR)
+        # Header cells share the option columns; short rows are padded so a
+        # partial header does not distort the shared column widths.
+        for header_row in field.group_header_rows:
+            header_row.extend([""] * (option_count - len(header_row)))
         field.group_hide_answer_labels = lead.hide_answer_labels
         field.group_header_line_class = lead_css_classes["header_line_class"]
-        field.group_header_row_class = lead_css_classes["header_row_class"]
         field.group_header_cell_class = lead_css_classes["header_cell_class"]
         field.group_header_cell_number_class_prefix = lead_css_classes["header_cell_number_class_prefix"]
         field.as_choice_list = question.type in (
@@ -515,6 +542,7 @@ class ResponseForm(models.ModelForm):
             other_field.widget_label = question.other_label
             other_field.show_required = False
             other_field.as_choice_list = False
+            other_field.group_option_count = option_count
             other_initial = self._other_initial.get(question.pk)
             if other_initial is not None:
                 other_field.initial = other_initial
@@ -546,6 +574,7 @@ class ResponseForm(models.ModelForm):
             wna_field.widget_label = question.will_not_answer_label
             wna_field.show_required = False
             wna_field.as_choice_list = False
+            wna_field.group_option_count = option_count
             if question.pk in self._wna_initial:
                 wna_field.initial = True
             self.fields[f"question_{question.pk}_wna"] = wna_field
