@@ -149,7 +149,7 @@ class ResponseForm(models.ModelForm):
         if self.survey.display_method == Survey.BY_CATEGORY:
             self.steps_count = len(self.categories) + (1 if self.qs_with_no_cat else 0)
         else:
-            self.steps_count = len(self.survey.questions.all())
+            self.steps_count = len(self._visible_questions())
         # will contain prefetched data to avoid multiple db calls
         self.response = False
         self.answers = False
@@ -227,6 +227,10 @@ class ResponseForm(models.ModelForm):
         self._visibility_cache[question.pk] = visible
         return visible
 
+    def _visible_questions(self):
+        """Survey questions minus those in a hidden category (uncategorized ones stay)."""
+        return self.survey.questions.exclude(category__hidden=True)
+
     def add_questions(self, data):
         # add a field for each survey question, corresponding to the question
         # type as appropriate.
@@ -241,7 +245,7 @@ class ResponseForm(models.ModelForm):
             for question in qs_for_step:
                 self.add_question(question, data, leads[question.pk])
         else:
-            all_questions = list(self.survey.questions.all())
+            all_questions = list(self._visible_questions())
             # Groups never cross categories, so leads are computed per category,
             # walking questions in their existing (display) order.
             leads = {}
@@ -691,7 +695,7 @@ class ResponseForm(models.ModelForm):
             if 0 <= step < len(self.categories):
                 return list(self.survey.questions.filter(category=self.categories[step]))
             return []
-        all_questions = list(self.survey.questions.all())
+        all_questions = list(self._visible_questions())
         if 0 <= step < len(all_questions):
             return [all_questions[step]]
         return []

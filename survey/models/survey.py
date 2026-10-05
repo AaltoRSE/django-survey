@@ -60,7 +60,7 @@ class Survey(models.Model):
         return reverse("survey-detail", kwargs={"id": self.pk})
 
     def non_empty_categories(self):
-        return [x for x in list(self.categories.order_by("order", "id")) if x.questions.count() > 0]
+        return [x for x in list(self.categories.filter(hidden=False).order_by("order", "id")) if x.questions.count() > 0]
 
     def is_all_in_one_page(self):
         return self.display_method == self.ALL_IN_ONE_PAGE
