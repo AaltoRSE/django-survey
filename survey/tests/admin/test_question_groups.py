@@ -1,6 +1,6 @@
 from django.test import TestCase
 
-from survey.admin_impl.question_groups import grouped_rows_without_predecessor, propagate_lead_settings
+from survey.admin.question_groups import grouped_rows_without_predecessor, propagate_lead_settings
 
 
 def row(order, pk=None, category_id=None, grouped=False):

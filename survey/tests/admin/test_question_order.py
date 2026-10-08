@@ -1,6 +1,6 @@
 from django.test import TestCase
 
-from survey.admin_impl.question_order import resolve_order_collisions, shift_colliding_questions
+from survey.admin.question_order import resolve_order_collisions, shift_colliding_questions
 from survey.models.question import Question
 from survey.models.survey import Survey
 

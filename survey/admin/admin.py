@@ -3,8 +3,8 @@ from django.contrib import admin
 from django_ace import AceWidget
 
 from survey.actions import make_published
-from survey.admin_impl.question_groups import grouped_rows_without_predecessor, propagate_lead_settings
-from survey.admin_impl.question_order import pinned_question_ids, shift_colliding_questions
+from survey.admin.question_groups import grouped_rows_without_predecessor, propagate_lead_settings
+from survey.admin.question_order import pinned_question_ids, shift_colliding_questions
 from survey.exporter.csv import Survey2Csv
 from survey.exporter.tex import Survey2Tex
 from survey.models import Answer, Category, CssSnippet, Question, QuestionCondition, Response, Survey
