@@ -138,7 +138,7 @@ class Question(models.Model):
     other_label = models.CharField(_("Label for the 'other' option"), max_length=200, default="Other, please specify")
     will_not_answer_option = models.BooleanField(_("Add a 'will not answer' option"), default=False)
     will_not_answer_label = models.CharField(
-        _("Label for the 'will not answer' option"), max_length=200, default="I will not answer"
+        _("Label for the 'will not answer' option"), max_length=200, default="I will not answer", blank=True
     )
 
     class Meta:
