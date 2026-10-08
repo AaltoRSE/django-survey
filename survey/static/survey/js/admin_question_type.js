@@ -5,6 +5,9 @@
    QuestionInlineForm.clean() stays authoritative, and the answer-defining
    fields hidden on grouped questions are overwritten with the group lead's
    values on save (same philosophy as the conditional.js header comment).
+   One exception: a grouped question's choices field stays visible while its
+   lead shows the answer labels, so each row of a group can carry its own
+   labels; the server enforces the lead's choices only when it hides them.
    Listeners are delegated from the document because the Survey page adds
    question inlines dynamically. */
 (function () {
@@ -13,11 +16,15 @@
     var TYPE_NAME = /^(questions-(\d+|__prefix__)-)?type$/;
     var GROUP_NAME = /^(questions-(\d+|__prefix__)-)?group_with_previous$/;
     var GROUP_HEADER_NAME = /^(questions-(\d+|__prefix__)-)?group_header$/;
+    var HIDE_LABELS_NAME = /^(questions-(\d+|__prefix__)-)?hide_answer_labels$/;
+    var CATEGORY_NAME = /^(questions-(\d+|__prefix__)-)?category$/;
 
     // Fields ignored for a question grouped with the preceding one: the
     // group's title, description and answer-defining settings come from the
     // question that opens the group. The row label is deliberately absent:
-    // it is how a follower gets its row text.
+    // it is how a follower gets its row text. Choices are listed but shown
+    // again when the group's lead keeps the answer labels visible (see
+    // updateContainer), so each row can have labels of its own.
     var GROUP_HIDDEN_FIELDS = [
         "text",
         "description",
@@ -60,6 +67,47 @@
         return null;
     }
 
+    function categoryValue(container) {
+        var category = findInput(container, CATEGORY_NAME);
+        return category ? category.value : null;
+    }
+
+    // The lead of a grouped row: the nearest preceding inline row in the
+    // same category that is not itself grouped with its predecessor. Mirrors
+    // the per-category walk of propagate_lead_settings() for rows in display
+    // order; a mismatch only mis-shows a field the server overwrites anyway.
+    function findLead(container) {
+        var category = categoryValue(container);
+        var row = container.previousElementSibling;
+        while (row) {
+            if (row.classList && row.classList.contains("inline-related")) {
+                if (categoryValue(row) === category) {
+                    var groupCheckbox = findInput(row, GROUP_NAME);
+                    if (!groupCheckbox || !groupCheckbox.checked) {
+                        return row;
+                    }
+                }
+            }
+            row = row.previousElementSibling;
+        }
+        return null;
+    }
+
+    // A follower edits its own choices only when its lead keeps the answer
+    // labels visible and is of a type that has choices at all.
+    function followerShowsChoices(container) {
+        var lead = findLead(container);
+        if (!lead) {
+            return false;
+        }
+        var hideLabels = findInput(lead, HIDE_LABELS_NAME);
+        if (!hideLabels || hideLabels.checked) {
+            return false;
+        }
+        var typeSelect = findInput(lead, TYPE_NAME);
+        return Boolean(typeSelect && FIELD_TYPES.choices.indexOf(typeSelect.value) !== -1);
+    }
+
     function updateContainer(container) {
         var typeSelect = findInput(container, TYPE_NAME);
         var groupCheckbox = findInput(container, GROUP_NAME);
@@ -88,6 +136,9 @@
             var hidden;
             if (grouped) {
                 hidden = GROUP_HIDDEN_FIELDS.indexOf(name) !== -1;
+                if (hidden && name === "choices") {
+                    hidden = !followerShowsChoices(container);
+                }
             } else {
                 hidden = !withHeader && HEADER_ONLY_FIELDS.indexOf(name) !== -1;
                 if (!hidden && FIELD_TYPES[name] && typeSelect) {
@@ -103,7 +154,13 @@
     }
 
     function isTrigger(name) {
-        return TYPE_NAME.test(name) || GROUP_NAME.test(name) || GROUP_HEADER_NAME.test(name);
+        return (
+            TYPE_NAME.test(name) ||
+            GROUP_NAME.test(name) ||
+            GROUP_HEADER_NAME.test(name) ||
+            HIDE_LABELS_NAME.test(name) ||
+            CATEGORY_NAME.test(name)
+        );
     }
 
     function updateAll(root) {
@@ -123,10 +180,9 @@
         if (!target.name || !isTrigger(target.name)) {
             return;
         }
-        var container = containerOf(target);
-        if (container) {
-            updateContainer(container);
-        }
+        // A lead's settings decide what its followers show, so one change
+        // refreshes every row, not just the changed one.
+        updateAll(document);
     });
 
     document.addEventListener("DOMContentLoaded", function () {

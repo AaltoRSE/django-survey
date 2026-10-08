@@ -1,10 +1,11 @@
 """Validate the grouping of questions saved together in the survey admin."""
 
 # Answer-defining fields every question of a group must share; the group's
-# lead question is authoritative for them.
+# lead question is authoritative for them. Choices are deliberately absent:
+# they stay per-question while the lead shows the answer labels, and are
+# enforced separately in propagate_lead_settings() when it hides them.
 GROUP_UNIFORM_FIELDS = (
     "type",
-    "choices",
     "scale_min",
     "scale_max",
     "other_option",
@@ -18,8 +19,12 @@ GROUP_UNIFORM_FIELDS = (
 def propagate_lead_settings(survey):
     """Copy each group lead's answer-defining fields onto the followers of its
     group, so a group stays uniform no matter what was submitted (the admin
-    hides these fields on followers). Group membership follows question order,
-    per category, like the front end's group_leads().
+    hides these fields on followers). Choices are the exception: when the lead
+    shows the answer labels, a follower keeps its own choices (a blank
+    follower still inherits the lead's); when the lead hides them, the
+    columns must line up, so the lead's choices are enforced. Group
+    membership follows question order, per category, like the front end's
+    group_leads().
 
     :param Survey survey: The survey whose questions to walk.
     :rtype: list of the follower questions that were changed."""
@@ -33,6 +38,10 @@ def propagate_lead_settings(survey):
             ]
             for field in updates:
                 setattr(question, field, getattr(lead, field))
+            own_choices = (question.choices or "").strip()
+            if (lead.hide_answer_labels or not own_choices) and question.choices != lead.choices:
+                question.choices = lead.choices
+                updates.append("choices")
             if question.group_header:
                 # A follower cannot be a group header: forced off, not copied
                 # from the lead, so group_header stays out of GROUP_UNIFORM_FIELDS.

@@ -82,7 +82,9 @@ class QuestionInlineFormSetTests(TestCase):
 class GroupLeadSettingsPropagationTests(TestCase):
     """Saving the inline formset copies the lead's answer-defining settings
     onto every follower of its group, overwriting whatever was submitted for
-    the followers (the admin hides those fields on grouped questions)."""
+    the followers (the admin hides those fields on grouped questions).
+    Choices are the exception: a follower keeps its own while the lead shows
+    the answer labels, though a blank follower still inherits the lead's."""
 
     def setUp(self):
         from unittest import mock
@@ -227,7 +229,8 @@ class QuestionTypeJsFieldListsTests(TestCase):
 
 class PropagateLeadSettingsTests(TestCase):
     """A group holding divergent follower values ends up uniform, whichever
-    way the questions were created."""
+    way the questions were created — except for choices, which stay
+    per-question while the lead shows the answer labels."""
 
     def setUp(self):
         from survey.models import Survey
@@ -276,6 +279,39 @@ class PropagateLeadSettingsTests(TestCase):
         self.question(1, type=Question.RADIO, choices="Red,Blue")
         self.question(2, grouped=True, type=Question.RADIO, choices="Red,Blue")
         self.assertEqual(propagate_lead_settings(self.survey), [])
+
+    def test_follower_choices_kept_when_lead_shows_labels(self):
+        from survey.models import Question
+
+        self.question(1, type=Question.RADIO, choices="Red,Blue", hide_answer_labels=False)
+        follower = self.question(2, grouped=True, type=Question.RADIO, choices="Crimson,Navy")
+        self.assertEqual(propagate_lead_settings(self.survey), [])
+        follower.refresh_from_db()
+        self.assertEqual(follower.choices, "Crimson,Navy")
+
+    def test_follower_choices_overwritten_when_lead_hides_labels(self):
+        from survey.models import Question
+
+        self.question(1, type=Question.RADIO, choices="Red,Blue", hide_answer_labels=True)
+        follower = self.question(2, grouped=True, type=Question.RADIO, choices="Crimson,Navy")
+        changed = propagate_lead_settings(self.survey)
+        self.assertEqual([question.pk for question in changed], [follower.pk])
+        follower.refresh_from_db()
+        self.assertEqual(follower.choices, "Red,Blue")
+        self.assertTrue(follower.hide_answer_labels)
+
+    def test_blank_follower_choices_inherited_when_lead_shows_labels(self):
+        from survey.models import Question
+
+        self.question(1, type=Question.RADIO, choices="Red,Blue", hide_answer_labels=False)
+        follower = self.question(2, grouped=True, type=Question.RADIO, choices="Crimson,Navy")
+        # Blank choices cannot pass Question.save() on a choice type; write
+        # them behind its back, as for a row predating the follower rule.
+        Question.objects.filter(pk=follower.pk).update(choices=" ")
+        changed = propagate_lead_settings(self.survey)
+        self.assertEqual([question.pk for question in changed], [follower.pk])
+        follower.refresh_from_db()
+        self.assertEqual(follower.choices, "Red,Blue")
 
     def test_categories_kept_separate(self):
         from survey.models import Category, Question
