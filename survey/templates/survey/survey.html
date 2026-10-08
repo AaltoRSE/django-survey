@@ -37,7 +37,9 @@
         {% for category in categories %}
             <div class="survey-category {% if category.pk %}category-{{category.pk}}{% else %}survey-no-category{% endif %}">
             <h3 class="survey-category-title"> {{category}} </h3>
-            <p class="survey-category-description"> {{category.description|default_if_none:""}} </p>
+            {% if category.description %}
+              <p class="survey-category-description"> {{category.description|default_if_none:""}} </p>
+            {% endif %}
             <div class="survey-category-questions">
                 {% include "survey/question.html" %}
             </div>
