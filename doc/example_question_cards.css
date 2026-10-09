@@ -5,78 +5,377 @@
  * questions that follow it) becomes a rounded block on a flat page background,
  * with the group title as a header separated from the answer lines by a rule.
  *
+ * This file owns the shape and size of the page and of the question card:
+ * the card box, its title and description, the survey and category chrome,
+ * the submit button, and the --aware-* custom properties. Everything inside
+ * the card — the answer table, its cells, labels and options — belongs to
+ * the question matrix snippet, so that no class is styled by both.
+ *
  * It relies on the survey class scheme. The group element carries the classes
  * of its first question:
  *   .survey-question              one question group (also <type>-question, question-<pk>)
  *   .survey-question-title        the group title (also <type>-question-title, question-<pk>-title)
  *   .survey-question-description  the group description
- *   .survey-question-table        the table of answer lines inside the group
- *   .survey-question-line         one answer line (question-<pk>-line)
- *   .survey-question-label-cell   the cell holding the line's label
- *   .survey-question-option-cell  one option's cell (also question-<pk>-option-cell-<n>);
- *                                 header cells (.survey-question-header-cell) share these columns
- *   .survey-question-answer-cell  the single cell of a non-choice answer, spanning the option columns
- *   .survey-question-label        the label text
- *   .survey-question-row          the container holding a non-choice answer's input
- *   .survey-question-option       one option (also question-<pk>-option-<n>)
+ *   .survey-question-required     the asterisk marking a required question
  */
 
 /* Flatten the page chrome so only the groups stand out. */
+:root {
+  --aware-canvas: #e6ebef;
+  --aware-surface: #ffffff;
+  --aware-ink: #101418;
+  --aware-ink-70: #4a5765;
+  --aware-muted: #78848f;
+  --aware-accent: #10457e;
+  --aware-accent-hover: #0b365f;
+  --aware-accent-tint: #e7eef7;
+  --aware-row-tint: #f6f8fa;
+  --aware-hairline: #dce2e8;
+  --aware-danger: #a53c3c;
+  --aware-radius: 18px;
+  --aware-shadow: 0 8px 28px rgba(16, 20, 24, 0.06);
+  --aware-focus: 0 0 0 4px rgba(16, 69, 126, 0.16);
+  --aware-page-width: 1440px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
+  background: var(--aware-canvas);
+}
+
+body {
+  margin: 0;
+  background: var(--aware-canvas);
+  color: var(--aware-ink);
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Page shell */
+#wrap.container {
+  width: min(100%, var(--aware-page-width)) !important;
+  margin: 0 auto;
+  padding: 48px 24px 72px;
+}
+
 #container-main.well {
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    padding: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
-/* The question group as a card. */
+.survey-container > h1 {
+  max-width: 30ch;
+  margin: 0;
+  color: var(--aware-ink);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 650;
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+}
+
+.survey-description {
+  max-width: 66ch;
+  margin: 14px 0 44px;
+  color: var(--aware-ink-70);
+  font-size: 1.125rem;
+  line-height: 1.55;
+}
+
+.survey-category {
+  margin: 0 0 52px;
+}
+
+/* Strong category heading with a vertical accent and divider. */
+h3.survey-category-title {
+  display: flex !important;
+  align-items: center;
+  gap: 13px;
+  margin: 8px 0 22px !important;
+  padding: 0 0 14px;
+  color: var(--aware-ink) !important;
+  border-bottom: 1px solid var(--aware-hairline);
+  font-size: 1.35rem !important;
+  font-weight: 700 !important;
+  line-height: 1.3 !important;
+  letter-spacing: -0.015em !important;
+  text-transform: none !important;
+}
+
+h3.survey-category-title::before {
+  display: block;
+  width: 5px;
+  height: 26px;
+  flex: 0 0 5px;
+  background: var(--aware-accent);
+  border-radius: 4px;
+  content: "";
+}
+
+/* Category description beneath the heading. */
+p.survey-category-description {
+  display: block;
+  max-width: 1440px;
+  margin: -8px 0 26px 18px !important;
+  padding: 12px 15px;
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--aware-ink-70) !important;
+  border-left: 3px solid #b8cce0;
+  border-radius: 0 8px 8px 0;
+  font-size: 1.35rem !important;
+  font-weight: 400;
+  line-height: 1.65 !important;
+  letter-spacing: 0;
+}
+
+p.survey-category-description:empty {
+  display: none;
+}
+
+.survey-category-questions {
+  display: grid;
+  gap: 22px;
+}
+
+/* Question card */
 .survey-question {
-    margin: 0 0 1.25em;
-    padding: 1em 1.25em;
-    background: #fdfdfd;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  position: relative;
+  min-width: 0;
+  margin: 0;
+  padding: 30px 32px 28px;
+  overflow: hidden;
+  overflow-x: auto;
+  background: var(--aware-surface);
+  border: 1px solid var(--aware-hairline);
+  border-radius: var(--aware-radius);
+  box-shadow: var(--aware-shadow);
 }
+
 .survey-question-title {
-    font-size: 1.1em;
-    font-weight: bold;
+  max-width: 78ch;
+  margin: 0;
+  color: var(--aware-ink);
+  font-size: 1.25rem;
+  font-weight: 650;
+  line-height: 1.42;
+  letter-spacing: -0.012em;
+  white-space: pre-line;
 }
+
 .survey-question-description {
-    color: #555;
-    margin-top: 0.3em;
+  max-width: 76ch;
+  margin: 10px 0 0;
+  color: var(--aware-ink-70);
+  font-size: 0.975rem;
+  line-height: 1.6;
 }
 
-/* Answer lines: a rule under the header, then one line per question with the
- * label on the left and the options on the right. */
-.survey-question-table {
-    width: 100%;
-    margin: 0.8em 0 0;
-    padding-top: 0.6em;
-    border-top: 1px solid #e5e5e5;
-}
-.survey-question-label-cell,
-.survey-question-option-cell,
-.survey-question-answer-cell {
-    padding: 0 0.5em 0.6em;
-    vertical-align: middle;
-}
-.survey-question-label-cell {
-    width: 12em;
-    white-space: nowrap;
-}
-.survey-question-label {
-    font-weight: bold;
+.survey-question-description:empty {
+  display: none;
 }
 
-/* Header rows (e.g. "0,1,2\nlow,,high") sit in the same table columns as the
- * options; alternate the answer lines' backgrounds so long groups stay easy
- * to scan. */
-.survey-question-header-cell {
-    text-align: center;
-    font-weight: normal;
-}
-.survey-question-line-even {
-    background: #f7f7f7;
+.survey-question-required {
+  position: relative;
+  top: -0.15em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.5em;
+  height: 0.5em;
+  margin-left: 0.15em;
+  color: var(--aware-danger);
+  font-size: 0;
+  vertical-align: super;
 }
 
+.survey-question-required::before {
+  content: "*";
+  font-size: 0.875rem;
+  font-weight: 750;
+}
+
+/* Radio and checkbox controls (bare element selectors, so they stay here
+ * alongside the other form chrome). */
+input[type="radio"],
+input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: #fff;
+  border: 2px solid #b7c2cc;
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+
+input[type="radio"] {
+  border-radius: 50%;
+}
+
+input[type="checkbox"] {
+  border-radius: 5px;
+}
+
+input[type="radio"]:checked {
+  background: radial-gradient(circle, var(--aware-accent) 0 34%, #fff 38% 55%, var(--aware-accent) 58% 100%);
+  border-color: var(--aware-accent);
+}
+
+input[type="checkbox"]:checked {
+  background-color: var(--aware-accent);
+  border-color: var(--aware-accent);
+  box-shadow: inset 0 0 0 4px var(--aware-accent);
+}
+
+input[type="checkbox"]:checked::after {
+  display: block;
+  width: 6px;
+  height: 11px;
+  margin: 2px 0 0 7px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  content: "";
+  transform: rotate(45deg);
+}
+
+input[type="radio"]:focus-visible,
+input[type="checkbox"]:focus-visible {
+  border-color: var(--aware-accent);
+  box-shadow: var(--aware-focus);
+  outline: none;
+}
+
+input[type="radio"]:disabled,
+input[type="checkbox"]:disabled {
+  background: #eef1f3;
+  border-color: #cfd6dc;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Primary action */
+.survey-submit,
+button[type="submit"],
+input[type="submit"] {
+  min-height: 48px;
+  margin-top: 10px;
+  padding: 11px 24px;
+  background: var(--aware-accent);
+  color: #fff;
+  border: 1px solid var(--aware-accent);
+  border-radius: 9px;
+  box-shadow: 0 4px 12px rgba(16, 69, 126, 0.16);
+  font: inherit;
+  font-weight: 650;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.survey-submit:hover,
+button[type="submit"]:hover,
+input[type="submit"]:hover {
+  background: var(--aware-accent-hover);
+  border-color: var(--aware-accent-hover);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.survey-submit:focus-visible,
+button[type="submit"]:focus-visible,
+input[type="submit"]:focus-visible {
+  box-shadow: var(--aware-focus);
+  outline: none;
+}
+
+.footer {
+  margin-top: 48px;
+  padding-top: 24px;
+  color: var(--aware-muted);
+  border-top: 1px solid rgba(120, 132, 143, 0.28);
+  font-size: 0.8125rem;
+}
+
+/* Responsive layout */
+@media (max-width: 720px) {
+  #wrap.container {
+    padding: 30px 14px 48px;
+  }
+
+  h3.survey-category-title {
+    margin-bottom: 18px !important;
+    padding-bottom: 12px;
+    font-size: 1.45rem !important;
+  }
+
+  h3.survey-category-title::before {
+    height: 22px;
+  }
+
+  p.survey-category-description {
+    margin: -6px 0 22px 0 !important;
+    padding: 11px 13px;
+    font-size: 1.35rem !important;
+    line-height: 1.55 !important;
+  }
+
+  .survey-description {
+    margin-bottom: 32px;
+  }
+
+  .survey-question {
+    padding: 24px 18px 20px;
+    border-radius: 14px;
+  }
+
+  .survey-question-title {
+    font-size: 1.0875rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  html,
+  body {
+    background: #fff;
+  }
+
+  #wrap.container {
+    width: 100% !important;
+    padding: 0;
+  }
+
+  .survey-question {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+
+  .survey-submit,
+  button[type="submit"],
+  input[type="submit"] {
+    display: none;
+  }
+}

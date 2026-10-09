@@ -1,0 +1,323 @@
+/* ===== Question matrix (table-based markup) =====
+   * Owns everything inside the question card: the answer table, answer
+   * lines, label and answer cells, header rows, option cells, the options
+   * and their labels, and the validation errors. The card snippet owns the
+   * card box, the title and description, the page chrome, and defines the
+   * --aware-* custom properties used below.
+   *
+   * Header cells (<th>) and option cells (<td>) share table columns,
+   * so their widths always match — no grid alignment tricks needed. */
+
+  .survey-question-table {
+    width: 100%;
+    table-layout: fixed;
+    margin: 24px 0 0;
+    padding: 12px 0 0;
+    overflow: hidden;
+    border: 0;
+    border-top: 1px solid var(--aware-hairline);
+    border-collapse: separate;
+    border-spacing: 0;
+    /* Fixed layout: the label column takes the width set further down and
+     * the option columns divide the rest equally. Switch to
+     * `table-layout: auto;` to let column widths follow their content. */
+  }
+
+  /* Answer lines: zebra + hover, as before. */
+  .survey-question-line > td {
+    padding: 14px 8px;
+    vertical-align: middle;
+    border: 0;
+    border-bottom: 1px solid var(--aware-hairline);
+    transition: background-color 140ms ease;
+  }
+
+  .survey-question-line:nth-child(even) > td {
+    background: var(--aware-row-tint);
+  }
+
+  .survey-question-line:focus-within > td,
+  .survey-question-line:hover > td {
+    background: var(--aware-accent-tint);
+  }
+
+  /* Row-label column: sized to its content. */
+  @media (min-width: 721px) {
+    .survey-question-label-cell {
+      width: 30%;
+    }
+  }
+  .survey-question-label-cell {
+    color: var(--aware-ink);
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1.45;
+  }
+
+
+  .survey-question-label {
+    color: var(--aware-ink);
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1.45;
+  }
+
+  /* Header rows: quiet, centered column captions. */
+  .survey-question-header-line > td,
+  .survey-question-header-line > th {
+    padding: 4px 6px 8px;
+    border: 0;
+    background: transparent;
+  }
+
+  .survey-question-header-cell {
+    color: var(--aware-ink-70);
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1.2;
+    text-align: center;
+    vertical-align: bottom;
+  }
+
+  /* Validation errors: inside the answer cell, or above the table for a
+   * group whose rows carry no labels. */
+  .survey-question-errors {
+    display: none;
+    margin: 0 0 10px;
+    color: var(--aware-danger);
+    font-size: 0.875rem;
+  }
+
+  .has-error .survey-question-errors,
+  .survey-question-errors[role="alert"] {
+    display: block;
+  }
+
+  .survey-question-errors + br,
+  .survey-question-answer-cell > br:first-of-type {
+    display: none;
+  }
+
+  /* Option container: the grid holding the options of one answer. */
+  .survey-question-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+    align-items: stretch;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .integer-scale-question-row,
+  .radio-question-row {
+    grid-template-columns: repeat(auto-fit, minmax(52px, 1fr));
+  }
+
+  /* Option cells and the chip inside each. */
+  .survey-question-option-cell {
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  .survey-question-option {
+    display: flex;
+    flex-direction: column-reverse;   /* label above the input */
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
+    min-height: 70px;
+    margin: 0;
+    padding: 8px 4px;
+    color: var(--aware-ink-70);
+    border: 1px solid transparent;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 450;
+    text-align: center;
+    transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+  }
+
+  .survey-question-option:hover {
+    background: var(--aware-row-tint);
+    border-color: var(--aware-hairline);
+    color: var(--aware-ink);
+  }
+
+  .survey-question-option input:checked {
+    box-shadow: 0 0 0 5px var(--aware-accent-tint);
+  }
+
+  .survey-question-option input:checked + .survey-question-option-label {
+    color: var(--aware-accent);
+    font-weight: 650;
+  }
+
+  .survey-question-option input:disabled + .survey-question-option-label {
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
+
+  .survey-question-option-label {
+    display: block;
+    max-width: 16ch;
+    min-height: 2.4em;
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1.2;
+    overflow-wrap: normal;   /* wrap at spaces, never mid-word */
+  }
+
+  /* Will-not-answer / other companions: a normal checkbox/input row,
+   * not an option chip. Compound selectors so snippet order can't
+   * flip them back to the chip layout. */
+  .survey-question-option.wna-question-option,
+  .survey-question-option.other-question-option {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 10px;
+    min-height: 0;
+    padding: 8px 6px;
+    text-align: left;
+  }
+
+  .wna-question-option > .survey-question-option-label,
+  .other-question-option > .survey-question-option-label {
+    max-width: none;
+    min-height: 0;
+    font-size: 1rem;
+  }
+
+  /* Text, number, and select controls inside an answer cell. */
+  .survey-question-answer-cell select,
+  .survey-question-answer-cell input[type="text"],
+  .survey-question-answer-cell input[type="number"],
+  .survey-question-answer-cell input[type="email"],
+  .survey-question-answer-cell input[type="date"],
+  .survey-question-answer-cell textarea {
+    width: min(100%, 560px);
+    min-height: 48px;
+    margin: 0;
+    padding: 10px 13px;
+    background: #fff;
+    color: var(--aware-ink);
+    border: 1.5px solid #b7c2cc;
+    border-radius: 9px;
+    box-shadow: 0 1px 2px rgba(16, 20, 24, 0.03);
+    font: inherit;
+    line-height: 1.35;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+
+  .survey-question-answer-cell textarea {
+    min-height: 120px;
+    resize: vertical;
+  }
+
+  .survey-question-answer-cell select:hover,
+  .survey-question-answer-cell input[type="text"]:hover,
+  .survey-question-answer-cell input[type="number"]:hover,
+  .survey-question-answer-cell input[type="email"]:hover,
+  .survey-question-answer-cell input[type="date"]:hover,
+  .survey-question-answer-cell textarea:hover {
+    border-color: var(--aware-muted);
+  }
+
+  .survey-question-answer-cell select:focus,
+  .survey-question-answer-cell input[type="text"]:focus,
+  .survey-question-answer-cell input[type="number"]:focus,
+  .survey-question-answer-cell input[type="email"]:focus,
+  .survey-question-answer-cell input[type="date"]:focus,
+  .survey-question-answer-cell textarea:focus {
+    border-color: var(--aware-accent);
+    box-shadow: var(--aware-focus);
+    outline: none;
+  }
+
+  /* Narrow screens: the table, its rows and its cells all become blocks, so
+   * each label sits above its own answer. The stacking rules come first and
+   * the metric rules after, because the generic rules below deliberately
+   * win the ties they already win today. */
+  @media (max-width: 720px) {
+    .survey-question-table,
+    .survey-question-table tbody,
+    .survey-question-line,
+    .survey-question-label-cell,
+    .survey-question-answer-cell {
+      display: block;
+      width: 100%;
+    }
+
+    .survey-question-label-cell {
+      padding: 14px 4px 6px !important;
+      border-bottom: 0 !important;
+    }
+
+    .survey-question-answer-cell {
+      padding: 10px 4px 16px !important;
+    }
+
+    .survey-question-row {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .likert-5-question-row {
+      grid-template-columns: 1fr;
+    }
+
+    .likert-5-question-option {
+      flex-direction: row;
+      justify-content: flex-start;
+      min-height: 48px;
+      padding: 10px 12px;
+      text-align: left;
+    }
+
+    .likert-5-question-option-label {
+      max-width: none;
+      min-height: 0;
+    }
+
+    .survey-question-line > td {
+      padding: 10px 3px;
+    }
+
+    .survey-question-header-line > td,
+    .survey-question-header-line > th {
+      padding: 2px 2px 6px;
+    }
+
+    .survey-question-header-cell {
+      font-size: 0.6875rem;
+      white-space: nowrap;
+    }
+
+    .survey-question-option {
+      padding: 6px 2px;
+    }
+
+    .survey-question-option-label {
+      font-size: 0.6875rem;
+    }
+  }
+
+  /* Phones: one option per line. */
+  @media (max-width: 430px) {
+    .survey-question-row,
+    .integer-scale-question-row,
+    .radio-question-row {
+      grid-template-columns: 1fr;
+    }
+
+    .survey-question-option {
+      flex-direction: row;
+      justify-content: flex-start;
+      min-height: 48px;
+      text-align: left;
+    }
+
+    .survey-question-option-label {
+      max-width: none;
+      min-height: 0;
+    }
+  }

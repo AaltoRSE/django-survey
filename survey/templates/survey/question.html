@@ -44,7 +44,8 @@
             <td class="{{ form.field.option_cell_class }} {{ form.field.option_cell_number_class_prefix }}{{ forloop.counter }}">
                 <label class="{{ form.field.option_class }} {{ form.field.option_number_class_prefix }}{{ forloop.counter }}">
                     {{ choice.tag }}
-                    {% if not form.field.group_hide_answer_labels %}<span class="survey-question-option-label">{{ choice.choice_label }}</span>{% endif %}
+                    {# Always emitted: a narrow screen shows these instead of the group's shared header row. #}
+                    <span class="survey-question-option-label{% if form.field.group_hide_answer_labels %} survey-question-option-label-narrow-only{% endif %}">{{ choice.choice_label }}</span>
                 </label>
             </td>
             {% endfor %}
