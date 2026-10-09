@@ -67,6 +67,41 @@ def question_css_classes(qtype, pk, suffix=""):
     }
 
 
+def questions_in_group_step(questions, leads, step):
+    """The questions sharing the page of the `step`-th question group.
+
+    Steps index the group leads in display order, so a question grouped with a
+    preceding one shares its lead's page instead of taking a step of its own.
+
+    :param list[Question] questions: questions in display order.
+    :param dict[int, Question] leads: each question's group lead, as built by
+        `question_groups.group_leads` per category.
+    :param int or None step: the step to select, or None for every group.
+    :rtype: list[Question]
+    """
+    lead_questions = [question for question in questions if leads[question.pk].pk == question.pk]
+    if step is not None:
+        lead_questions = lead_questions[step : step + 1]
+    step_lead_pks = {lead.pk for lead in lead_questions}
+    return [question for question in questions if leads[question.pk].pk in step_lead_pks]
+
+
+def questions_by_category(questions):
+    """Bucket `questions` by category id, keeping their given (display) order
+    within each bucket.
+
+    Groups never cross categories, so questions are bucketed before asking
+    `group_leads` which question opens each group.
+
+    :param list[Question] questions: questions in display order.
+    :rtype: dict[int or None, list[Question]]
+    """
+    buckets = {}
+    for question in questions:
+        buckets.setdefault(question.category_id, []).append(question)
+    return buckets
+
+
 class ResponseForm(models.ModelForm):
     OTHER_SENTINEL = "__other__"
     WILL_NOT_ANSWER_SENTINEL = "__will-not-answer__"
@@ -124,7 +159,10 @@ class ResponseForm(models.ModelForm):
             )
         }
 
-        all_questions = list(self.survey.questions.all())
+        # Every question of the survey, fetched once with its category so the
+        # per-question filters below need no further queries.
+        all_questions = list(self.survey.questions.select_related("category"))
+        self._all_questions = all_questions
         self._questions_by_id = {question.pk: question for question in all_questions}
 
         self._other_initial = {}
@@ -144,10 +182,18 @@ class ResponseForm(models.ModelForm):
         self.uuid = uuid.uuid4().hex
 
         self.categories = self.survey.non_empty_categories()
-        self.qs_with_no_cat = self.survey.questions.filter(category__isnull=True).order_by("order", "id")
+        self.qs_with_no_cat = [question for question in all_questions if question.category_id is None]
+
+        # Each question's group lead, computed once: groups never cross
+        # categories, so the questions are bucketed before the group walk.
+        self._leads = {}
+        for category_questions in questions_by_category(self._visible_questions()).values():
+            self._leads.update(question_groups.group_leads(category_questions))
 
         if self.survey.display_method == Survey.BY_CATEGORY:
             self.steps_count = len(self.categories) + (1 if self.qs_with_no_cat else 0)
+        elif self.survey.display_method == Survey.BY_QUESTION:
+            self.steps_count = len([q for q in self._visible_questions() if not q.group_with_previous])
         else:
             self.steps_count = len(self._visible_questions())
         # will contain prefetched data to avoid multiple db calls
@@ -229,41 +275,26 @@ class ResponseForm(models.ModelForm):
 
     def _visible_questions(self):
         """Survey questions minus those in a hidden category (uncategorized ones stay)."""
-        return self.survey.questions.exclude(category__hidden=True)
+        return [question for question in self._all_questions if not (question.category and question.category.hidden)]
 
     def add_questions(self, data):
         # add a field for each survey question, corresponding to the question
         # type as appropriate.
 
+        all_questions = self._visible_questions()
+
+        questions_for_step = []
         if self.survey.display_method == Survey.BY_CATEGORY and self.step is not None:
-            if self.step == len(self.categories):
-                qs_for_step = self.survey.questions.filter(category__isnull=True).order_by("order", "id")
-            else:
-                qs_for_step = self.survey.questions.filter(category=self.categories[self.step])
+            category_id = None if self.step == len(self.categories) else self.categories[self.step].pk
+            questions_for_step = [question for question in all_questions if question.category_id == category_id]
+        elif self.survey.display_method == Survey.BY_QUESTION:
+            questions_for_step = questions_in_group_step(all_questions, self._leads, self.step)
+        else: # All questions on one page
+            questions_for_step = all_questions
 
-            leads = question_groups.group_leads(list(qs_for_step))
-            for question in qs_for_step:
-                self.add_question(question, data, leads[question.pk])
-        else:
-            all_questions = list(self._visible_questions())
-            # Groups never cross categories, so leads are computed per category,
-            # walking questions in their existing (display) order.
-            leads = {}
-            questions_by_category = {}
-            for question in all_questions:
-                questions_by_category.setdefault(question.category_id, []).append(question)
-            for category_questions in questions_by_category.values():
-                leads.update(question_groups.group_leads(category_questions))
+        for question in questions_for_step:
+            self.add_question(question, data, self._leads[question.pk])
 
-            for i, question in enumerate(all_questions):
-                not_to_keep = i != self.step and self.step is not None
-                if self.survey.display_method == Survey.BY_QUESTION and not_to_keep:
-                    continue
-                if self.survey.display_method == Survey.BY_QUESTION:
-                    lead = question
-                else:
-                    lead = leads[question.pk]
-                self.add_question(question, data, lead)
         question_groups.mark_group_boundaries(self.fields)
         question_groups.mark_row_parity(self.fields)
         question_groups.mark_label_columns(self.fields)
@@ -696,12 +727,10 @@ class ResponseForm(models.ModelForm):
             if step == len(self.categories):
                 return list(self.qs_with_no_cat)
             if 0 <= step < len(self.categories):
-                return list(self.survey.questions.filter(category=self.categories[step]))
+                category_id = self.categories[step].pk
+                return [q for q in self._visible_questions() if q.category_id == category_id]
             return []
-        all_questions = list(self._visible_questions())
-        if 0 <= step < len(all_questions):
-            return [all_questions[step]]
-        return []
+        return questions_in_group_step(self._visible_questions(), self._leads, step)
 
     def step_has_visible_questions(self, step):
         return any(self.is_visible(question) for question in self._questions_for_step(step))
