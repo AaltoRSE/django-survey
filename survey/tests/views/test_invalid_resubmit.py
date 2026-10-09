@@ -66,3 +66,23 @@ class CategoryPagedResubmitTests(TestCase):
         response = self.client.post(self.step_url(1), {})
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, f'action="{self.step_url(1)}"')
+
+
+class InvalidDateStepAssetTests(TestCase):
+    """A date question needs its picker on the redisplayed invalid form too."""
+
+    def setUp(self):
+        self.survey = make_survey(display_method=Survey.BY_CATEGORY)
+        self.category = Category.objects.create(survey=self.survey, name="Dates", order=1)
+        self.date_question = Question.objects.create(
+            survey=self.survey, text="Born", order=1, required=True, type=Question.DATE, category=self.category
+        )
+        self.url = reverse("survey-detail", kwargs={"id": self.survey.pk})
+
+    def test_the_picker_is_loaded_when_the_form_is_first_shown(self):
+        self.assertContains(self.client.get(self.url), "flatpickr.min.js")
+
+    def test_the_picker_is_loaded_on_a_redisplayed_invalid_form(self):
+        response = self.client.post(self.url, {})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "flatpickr.min.js")
