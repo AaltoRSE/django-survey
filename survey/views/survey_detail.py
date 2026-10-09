@@ -72,7 +72,15 @@ class SurveyDetail(View):
         if not survey.editable_answers and form.response is not None:
             LOGGER.info("Redirects to survey list after trying to edit non editable answer.")
             return redirect(reverse("survey-list"))
-        context = {"response_form": form, "survey": survey, "categories": categories}
+        context = {
+            "response_form": form,
+            "survey": survey,
+            "categories": categories,
+            "step": form.step,
+            "asset_context": {
+                "flatpickr": any(field.widget.attrs.get("class") == "date" for _, field in form.fields.items())
+            },
+        }
         if form.is_valid():
             return self.treat_valid_form(form, kwargs, request, survey)
         return self.handle_invalid_form(context, form, request, survey)

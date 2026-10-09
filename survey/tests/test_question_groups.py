@@ -1,3 +1,4 @@
+from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
@@ -279,6 +280,62 @@ class GroupRowLabelsPagedSurveyRenderingTests(TestCase):
         self.assertIn(">Vanilla<", self.html)
         self.assertIn(">Chocolate<", self.html)
         self.assertIn(">Strawberry<", self.html)
+
+
+class PagedStepBookkeepingTests(TestCase):
+    """`steps_count` and `_questions_for_step` must describe the pages that
+    `add_questions` actually builds.
+
+    They drive navigation — the "Next" button and the view's skip-empty-step
+    redirect — so a step they describe but the form does not fill is a page
+    the participant can reach with nothing on it.
+    """
+
+    def setUp(self):
+        self.survey = make_survey(display_method=Survey.BY_QUESTION)
+        self.lead = make_question(self.survey, Question.TEXT, order=1, text="Flavors")
+        self.follower = Question.objects.create(
+            survey=self.survey,
+            text="",
+            order=2,
+            required=False,
+            type=Question.TEXT,
+            group_with_previous=True,
+            label="Chocolate",
+        )
+        self.standalone = make_question(self.survey, Question.TEXT, order=3, text="Age")
+
+    def form_for_step(self, step):
+        return ResponseForm(survey=self.survey, user=AnonymousUser(), step=step)
+
+    def question_pks_on_step(self, step):
+        """The pks of the questions the form builds fields for on `step`,
+        ignoring the "other"/"will not answer" companion fields."""
+        return {
+            int(name.split("_", 1)[1])
+            for name in self.form_for_step(step).fields
+            if name.startswith("question_") and name.split("_", 1)[1].isdigit()
+        }
+
+    def test_steps_count_matches_the_number_of_filled_pages(self):
+        steps_count = self.form_for_step(0).steps_count
+        filled = [step for step in range(steps_count) if self.question_pks_on_step(step)]
+        self.assertEqual(steps_count, len(filled))
+
+    def test_questions_for_step_matches_the_fields_built(self):
+        form = self.form_for_step(0)
+        for step in range(form.steps_count):
+            expected = {question.pk for question in form._questions_for_step(step)}
+            self.assertEqual(self.question_pks_on_step(step), expected, f"step {step}")
+
+    def test_every_question_appears_on_exactly_one_step(self):
+        steps_count = self.form_for_step(0).steps_count
+        seen = []
+        for step in range(steps_count):
+            seen.extend(self.question_pks_on_step(step))
+        self.assertEqual(
+            sorted(seen), sorted(question.pk for question in (self.lead, self.follower, self.standalone))
+        )
 
 
 class HeaderRowsRenderingTests(TestCase):
