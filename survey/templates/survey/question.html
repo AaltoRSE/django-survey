@@ -4,16 +4,29 @@
         <div class="{{ form.field.group_class }}" data-question-group>
             <div class="{{ form.field.group_title_class }}">{{ form.field.group_title|safe }}{% if form.field.group_required %} <span class="glyphicon glyphicon-asterisk {{ form.field.required_class }}"> </span>{% endif %}</div>
             {% if form.field.group_description %}<div class="{{ form.field.group_description_class }}">{{ form.field.group_description|safe }}</div>{% endif %}
+            {% if not form.field.group_has_row_labels %}
+            {# No label column to hold the errors: show them under the title instead. #}
+            {% for member in response_form %}
+            {% if member.field.group_id == form.field.group_id and member.errors %}
+            <div class="help-inline {{ member.field.errors_class }}">
+                <strong> {% for error in member.errors %}{{ error }}{% endfor %} </strong>
+            </div>
+            {% endif %}
+            {% endfor %}
+            {% endif %}
             <table class="{{ form.field.group_table_class }}">
             <tbody>
             {% for row in form.field.group_header_rows %}
             <tr class="{{ form.field.group_header_line_class }}">
+                {% if form.field.group_has_row_labels %}
                 <td class="{{ form.field.label_cell_class }}"></td>
+                {% endif %}
                 {% for cell in row %}<th scope="col" class="{{ form.field.group_header_cell_class }} {{ form.field.group_header_cell_number_class_prefix }}{{ forloop.counter }}">{{ cell }}</th>{% endfor %}
             </tr>
             {% endfor %}
         {% endif %}
         <tr class="{{ form.field.line_class }} survey-question-line-{{ form.field.row_parity }}{% if form.errors%} danger {% endif %}">
+            {% if form.field.group_has_row_labels %}
             <td class="{{ form.field.label_cell_class }}">
                 <span class="{{ form.field.label_class }}">{{ form.field.row_label }}</span>
 	            {% if form.field.row_label and form.field.show_required|default:form.field.required %}
@@ -25,6 +38,7 @@
 	            </span>
                 {% endif %}
             </td>
+            {% endif %}
             {% if form.field.as_choice_list %}
             {% for choice in form %}
             <td class="{{ form.field.option_cell_class }} {{ form.field.option_cell_number_class_prefix }}{{ forloop.counter }}">

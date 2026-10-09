@@ -15,6 +15,9 @@ class QuestionCssClassesRenderingTests(TestCase):
         self.radio_q = make_question(
             self.survey, Question.RADIO, order=1, choices="Yes,No", text="Radio question"
         )
+        # The label cell and span only render for questions with a row label.
+        self.radio_q.label = "Row 1"
+        self.radio_q.save()
         self.scale_q = Question.objects.create(
             survey=self.survey,
             text="Scale question",

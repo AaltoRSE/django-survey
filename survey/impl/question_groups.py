@@ -101,6 +101,40 @@ def mark_row_parity(fields):
         previous_group_id = group_id
 
 
+def mark_label_columns(fields):
+    """Set `group_has_row_labels` on each form field: whether its group's
+    table needs the row-label column.
+
+    Walks `fields` (a mapping of field name -> field, e.g. `form.fields`) in
+    insertion order, using the same grouping rule as `mark_group_boundaries`:
+    consecutive fields sharing a `group_id` belong to the same group, and
+    fields with no `group_id` attribute are their own single-field group.
+    Every field of a group gets True iff any field in the group has a
+    non-blank `row_label` (companion fields such as the "other" text input
+    have no `row_label` and never make it True, but still get the flag so
+    their rows render consistently).
+
+    :param dict fields: form fields, in insertion order.
+    """
+    field_list = list(fields.values())
+    group = []
+    previous_group_id = object()
+    for field in field_list + [None]:
+        group_id = object()
+        if field is not None:
+            group_id = getattr(field, "group_id", None)
+            if group_id is None:
+                group_id = object()
+        if group and group_id != previous_group_id:
+            has_labels = any((getattr(member, "row_label", "") or "").strip() for member in group)
+            for member in group:
+                member.group_has_row_labels = has_labels
+            group = []
+        if field is not None:
+            group.append(field)
+        previous_group_id = group_id
+
+
 def export_name(question, lead):
     """Return the CSV/export column name for `question`, given its group lead.
 

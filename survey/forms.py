@@ -9,7 +9,7 @@ from django.urls import reverse
 from django.utils.text import slugify
 
 from survey.conditions import evaluate
-from survey.impl.question_groups import group_leads, mark_group_boundaries, mark_row_parity, parse_header_rows
+from survey.impl import question_groups
 from survey.models import Answer, Category, Question, QuestionCondition, Response, Survey
 from survey.signals import survey_completed
 from survey.widgets import ImageSelectWidget, NativeDateTimeInput, NativeTimeInput
@@ -241,7 +241,7 @@ class ResponseForm(models.ModelForm):
             else:
                 qs_for_step = self.survey.questions.filter(category=self.categories[self.step])
 
-            leads = group_leads(list(qs_for_step))
+            leads = question_groups.group_leads(list(qs_for_step))
             for question in qs_for_step:
                 self.add_question(question, data, leads[question.pk])
         else:
@@ -253,7 +253,7 @@ class ResponseForm(models.ModelForm):
             for question in all_questions:
                 questions_by_category.setdefault(question.category_id, []).append(question)
             for category_questions in questions_by_category.values():
-                leads.update(group_leads(category_questions))
+                leads.update(question_groups.group_leads(category_questions))
 
             for i, question in enumerate(all_questions):
                 not_to_keep = i != self.step and self.step is not None
@@ -264,8 +264,9 @@ class ResponseForm(models.ModelForm):
                 else:
                     lead = leads[question.pk]
                 self.add_question(question, data, lead)
-        mark_group_boundaries(self.fields)
-        mark_row_parity(self.fields)
+        question_groups.mark_group_boundaries(self.fields)
+        question_groups.mark_row_parity(self.fields)
+        question_groups.mark_label_columns(self.fields)
 
     def current_categories(self):
         if self.survey.display_method == Survey.BY_CATEGORY:
@@ -502,7 +503,9 @@ class ResponseForm(models.ModelForm):
         field.group_description_class = lead_css_classes["description_class"]
         option_count = self.get_option_column_count(lead)
         field.group_option_count = option_count
-        field.group_header_rows = parse_header_rows(lead.header_rows, settings.CHOICES_SEPARATOR)
+        field.group_header_rows = question_groups.parse_header_rows(
+            lead.header_rows, settings.CHOICES_SEPARATOR
+        )
         # Header cells share the option columns; short rows are padded so a
         # partial header does not distort the shared column widths.
         for header_row in field.group_header_rows:

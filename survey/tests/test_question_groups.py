@@ -4,13 +4,7 @@ from django.urls import reverse
 
 from survey.exporter.csv.survey2csv import Survey2Csv
 from survey.forms import ResponseForm
-from survey.impl.question_groups import (
-    group_leads,
-    export_name,
-    mark_group_boundaries,
-    mark_row_parity,
-    parse_header_rows,
-)
+from survey.impl import question_groups
 from survey.models import Category, Question, Survey
 from survey.tests.test_other_option import make_question, make_survey
 
@@ -21,7 +15,7 @@ class GroupLeadsTests(TestCase):
 
     def test_standalone_question_leads_itself(self):
         question = make_question(self.survey, Question.TEXT, order=1, text="Q1")
-        leads = group_leads([question])
+        leads = question_groups.group_leads([question])
         self.assertEqual(leads[question.pk], question)
 
     def test_two_group_questions_join_preceding_standalone(self):
@@ -32,7 +26,7 @@ class GroupLeadsTests(TestCase):
         follower_2 = Question.objects.create(
             survey=self.survey, text="", order=3, required=False, type=Question.TEXT, group_with_previous=True
         )
-        leads = group_leads([lead, follower_1, follower_2])
+        leads = question_groups.group_leads([lead, follower_1, follower_2])
         self.assertEqual(leads[lead.pk], lead)
         self.assertEqual(leads[follower_1.pk], lead)
         self.assertEqual(leads[follower_2.pk], lead)
@@ -41,7 +35,7 @@ class GroupLeadsTests(TestCase):
         follower = Question.objects.create(
             survey=self.survey, text="", order=1, required=False, type=Question.TEXT, group_with_previous=True
         )
-        leads = group_leads([follower])
+        leads = question_groups.group_leads([follower])
         self.assertEqual(leads[follower.pk], follower)
 
     def test_categories_kept_separate(self):
@@ -64,8 +58,8 @@ class GroupLeadsTests(TestCase):
         )
         # Questions belonging to different categories, given to group_leads in a
         # single flat list, must never merge into the same group.
-        leads = group_leads([lead_a, lead_b])
-        leads.update(group_leads([lead_b, follower_b]))
+        leads = question_groups.group_leads([lead_a, lead_b])
+        leads.update(question_groups.group_leads([lead_b, follower_b]))
         self.assertEqual(leads[lead_a.pk], lead_a)
         self.assertEqual(leads[lead_b.pk], lead_b)
         self.assertEqual(leads[follower_b.pk], lead_b)
@@ -82,7 +76,7 @@ class MarkGroupBoundariesTests(TestCase):
         wna_field.group_id = 1
 
         fields = {"question_1": main_field, "question_1_wna": wna_field}
-        mark_group_boundaries(fields)
+        question_groups.mark_group_boundaries(fields)
 
         self.assertTrue(main_field.starts_group)
         self.assertFalse(main_field.ends_group)
@@ -97,30 +91,30 @@ class ExportNameTests(TestCase):
         follower = Question.objects.create(
             survey=survey, text="", order=2, required=False, type=Question.TEXT, label="Chocolate"
         )
-        self.assertEqual(export_name(follower, lead), "Flavors - Chocolate")
+        self.assertEqual(question_groups.export_name(follower, lead), "Flavors - Chocolate")
 
     def test_export_name_is_lead_text_without_label(self):
         survey = make_survey()
         lead = make_question(survey, Question.TEXT, order=1, text="Flavors")
-        self.assertEqual(export_name(lead, lead), "Flavors")
+        self.assertEqual(question_groups.export_name(lead, lead), "Flavors")
 
 
 class ParseHeaderRowsTests(TestCase):
     def test_multiple_lines_become_multiple_rows(self):
-        rows = parse_header_rows("0,1,2\nlow,,high", ",")
+        rows = question_groups.parse_header_rows("0,1,2\nlow,,high", ",")
         self.assertEqual(rows, [["0", "1", "2"], ["low", "", "high"]])
 
     def test_blank_lines_are_skipped(self):
-        rows = parse_header_rows("0,1\n\n   \n2,3", ",")
+        rows = question_groups.parse_header_rows("0,1\n\n   \n2,3", ",")
         self.assertEqual(rows, [["0", "1"], ["2", "3"]])
 
     def test_cells_are_stripped_but_empty_cells_kept(self):
-        rows = parse_header_rows(" a , , b ", ",")
+        rows = question_groups.parse_header_rows(" a , , b ", ",")
         self.assertEqual(rows, [["a", "", "b"]])
 
     def test_empty_text_returns_empty_list(self):
-        self.assertEqual(parse_header_rows("", ","), [])
-        self.assertEqual(parse_header_rows(None, ","), [])
+        self.assertEqual(question_groups.parse_header_rows("", ","), [])
+        self.assertEqual(question_groups.parse_header_rows(None, ","), [])
 
 
 class MarkRowParityTests(TestCase):
@@ -133,7 +127,7 @@ class MarkRowParityTests(TestCase):
             field = FakeField()
             field.group_id = 1
             fields[f"question_{i}"] = field
-        mark_row_parity(fields)
+        question_groups.mark_row_parity(fields)
         parities = [field.row_parity for field in fields.values()]
         self.assertEqual(parities, ["odd", "even", "odd", "even"])
 
@@ -147,7 +141,7 @@ class MarkRowParityTests(TestCase):
         third.group_id = 2
 
         fields = {"a": first, "b": second, "c": third}
-        mark_row_parity(fields)
+        question_groups.mark_row_parity(fields)
 
         self.assertEqual(first.row_parity, "odd")
         self.assertEqual(second.row_parity, "even")
@@ -160,7 +154,7 @@ class MarkRowParityTests(TestCase):
         first, second = FakeField(), FakeField()
 
         fields = {"a": first, "b": second}
-        mark_row_parity(fields)
+        question_groups.mark_row_parity(fields)
 
         self.assertEqual(first.row_parity, "odd")
         self.assertEqual(second.row_parity, "odd")
@@ -430,6 +424,157 @@ class HideAnswerLabelsRenderingTests(TestCase):
     def test_option_labels_rendered_without_the_flag(self):
         html = self.render(hide=False)
         self.assertIn('<span class="survey-question-option-label">Yes</span>', html)
+
+
+class MarkLabelColumnsTests(TestCase):
+    def test_all_blank_labels_mark_the_group_false(self):
+        class FakeField:
+            pass
+
+        first, second = FakeField(), FakeField()
+        first.group_id = 1
+        first.row_label = ""
+        second.group_id = 1
+        second.row_label = "   "
+
+        fields = {"a": first, "b": second}
+        question_groups.mark_label_columns(fields)
+
+        self.assertFalse(first.group_has_row_labels)
+        self.assertFalse(second.group_has_row_labels)
+
+    def test_one_label_marks_the_whole_group_true(self):
+        class FakeField:
+            pass
+
+        first, second, companion = FakeField(), FakeField(), FakeField()
+        first.group_id = 1
+        first.row_label = ""
+        second.group_id = 1
+        second.row_label = "Chocolate"
+        # Companion fields (other/wna) have no row_label but share the group.
+        companion.group_id = 1
+
+        fields = {"a": first, "b": second, "c": companion}
+        question_groups.mark_label_columns(fields)
+
+        self.assertTrue(first.group_has_row_labels)
+        self.assertTrue(second.group_has_row_labels)
+        self.assertTrue(companion.group_has_row_labels)
+
+    def test_groups_are_marked_independently(self):
+        class FakeField:
+            pass
+
+        labeled, unlabeled = FakeField(), FakeField()
+        labeled.group_id = 1
+        labeled.row_label = "Row"
+        unlabeled.group_id = 2
+        unlabeled.row_label = ""
+
+        fields = {"a": labeled, "b": unlabeled}
+        question_groups.mark_label_columns(fields)
+
+        self.assertTrue(labeled.group_has_row_labels)
+        self.assertFalse(unlabeled.group_has_row_labels)
+
+    def test_fields_without_group_id_are_their_own_group(self):
+        class FakeField:
+            pass
+
+        first, second = FakeField(), FakeField()
+        first.row_label = "Solo"
+
+        fields = {"a": first, "b": second}
+        question_groups.mark_label_columns(fields)
+
+        self.assertTrue(first.group_has_row_labels)
+        self.assertFalse(second.group_has_row_labels)
+
+
+class LabelColumnRenderingTests(TestCase):
+    """The row-label column only renders for groups that actually have row
+    labels; a fully unlabeled group (or a standalone question without a
+    label) gets no label cells, in the header rows included."""
+
+    def render(self, survey):
+        response = self.client.get(reverse("survey-detail", kwargs={"id": survey.pk}))
+        self.assertEqual(response.status_code, 200)
+        return response.content.decode()
+
+    def test_unlabeled_group_has_no_label_column(self):
+        survey = make_survey(display_method=Survey.ALL_IN_ONE_PAGE)
+        lead = make_question(survey, Question.RADIO, order=1, choices="Yes,No", text="Ratings", required=False)
+        lead.header_rows = "Yes,No"
+        lead.save()
+        Question.objects.create(
+            survey=survey,
+            text="",
+            order=2,
+            required=False,
+            type=Question.RADIO,
+            choices="Yes,No",
+            group_with_previous=True,
+        )
+        html = self.render(survey)
+        self.assertNotIn("survey-question-label-cell", html)
+        # The header row itself stays, without the leading spacer cell.
+        self.assertIn("survey-question-header-cell", html)
+
+    def test_labeled_group_keeps_the_label_column_on_every_row(self):
+        survey = make_survey(display_method=Survey.ALL_IN_ONE_PAGE)
+        lead = make_question(survey, Question.RADIO, order=1, choices="Yes,No", text="Ratings", required=False)
+        lead.header_rows = "Yes,No"
+        lead.will_not_answer_option = True
+        lead.save()
+        Question.objects.create(
+            survey=survey,
+            text="",
+            order=2,
+            required=False,
+            type=Question.RADIO,
+            choices="Yes,No",
+            group_with_previous=True,
+            label="Row 2",
+        )
+        html = self.render(survey)
+        # Header spacer + two question rows + the wna companion row.
+        self.assertEqual(html.count("survey-question-label-cell"), 4)
+
+    def test_standalone_unlabeled_question_has_no_label_cell(self):
+        survey = make_survey(display_method=Survey.ALL_IN_ONE_PAGE)
+        make_question(survey, Question.TEXT, order=1, text="Comments", required=False)
+        html = self.render(survey)
+        self.assertNotIn("survey-question-label-cell", html)
+
+
+class ErrorPlacementRenderingTests(TestCase):
+    """Validation errors of a choice-list question render in the label cell
+    when the group has one, and under the group title when the label column
+    is omitted."""
+
+    ERROR = "This field is required."
+
+    def submit_empty(self, survey):
+        response = self.client.post(reverse("survey-detail", kwargs={"id": survey.pk}), {})
+        self.assertEqual(response.status_code, 200)
+        return response.content.decode()
+
+    def test_error_rendered_under_the_title_without_label_column(self):
+        survey = make_survey(display_method=Survey.ALL_IN_ONE_PAGE)
+        make_question(survey, Question.RADIO, order=1, choices="Yes,No", text="Ratings", required=True)
+        html = self.submit_empty(survey)
+        self.assertEqual(html.count(self.ERROR), 1)
+        self.assertLess(html.index(self.ERROR), html.index("<table"))
+
+    def test_error_rendered_in_the_label_cell_with_label_column(self):
+        survey = make_survey(display_method=Survey.ALL_IN_ONE_PAGE)
+        question = make_question(survey, Question.RADIO, order=1, choices="Yes,No", text="Ratings", required=True)
+        question.label = "Row 1"
+        question.save()
+        html = self.submit_empty(survey)
+        self.assertEqual(html.count(self.ERROR), 1)
+        self.assertGreater(html.index(self.ERROR), html.index("<table"))
 
 
 class QuestionValidationTests(TestCase):
