@@ -1,0 +1,95 @@
+[
+  {
+    "model": "survey.survey",
+    "pk": 100,
+    "fields": {
+      "name": "Paged by category",
+      "description": "",
+      "is_published": true,
+      "need_logged_user": false,
+      "editable_answers": true,
+      "display_method": 2,
+      "publish_date": "2000-01-01",
+      "expire_date": "2099-12-31",
+      "redirect_url": ""
+    }
+  },
+  {
+    "model": "survey.category",
+    "pk": 100,
+    "fields": {
+      "name": "First",
+      "survey": 100,
+      "order": 1
+    }
+  },
+  {
+    "model": "survey.category",
+    "pk": 101,
+    "fields": {
+      "name": "Second",
+      "survey": 100,
+      "order": 2
+    }
+  },
+  {
+    "model": "survey.question",
+    "pk": 100,
+    "fields": {
+      "survey": 100,
+      "category": 100,
+      "text": "Name",
+      "order": 1,
+      "required": true,
+      "type": "text"
+    }
+  },
+  {
+    "model": "survey.question",
+    "pk": 101,
+    "fields": {
+      "survey": 100,
+      "category": 101,
+      "text": "Town",
+      "order": 2,
+      "required": true,
+      "type": "text"
+    }
+  },
+  {
+    "model": "survey.survey",
+    "pk": 101,
+    "fields": {
+      "name": "Dates by category",
+      "description": "",
+      "is_published": true,
+      "need_logged_user": false,
+      "editable_answers": true,
+      "display_method": 2,
+      "publish_date": "2000-01-01",
+      "expire_date": "2099-12-31",
+      "redirect_url": ""
+    }
+  },
+  {
+    "model": "survey.category",
+    "pk": 102,
+    "fields": {
+      "name": "Dates",
+      "survey": 101,
+      "order": 1
+    }
+  },
+  {
+    "model": "survey.question",
+    "pk": 102,
+    "fields": {
+      "survey": 101,
+      "category": 102,
+      "text": "Born",
+      "order": 1,
+      "required": true,
+      "type": "date"
+    }
+  }
+]
