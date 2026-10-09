@@ -443,8 +443,9 @@ class GroupHeaderFieldDefaultsTests(TestCase):
 
 
 class HideAnswerLabelsRenderingTests(TestCase):
-    """hide_answer_labels on the group's lead removes the option-label texts
-    for every row of the group; header rows remain as the replacement."""
+    """hide_answer_labels on the group's lead marks the option-label texts of
+    every row of the group as narrow-screen only, so the header rows can
+    replace them where there is room for a shared header."""
 
     def render(self, hide):
         survey = make_survey(display_method=Survey.ALL_IN_ONE_PAGE)
@@ -467,12 +468,20 @@ class HideAnswerLabelsRenderingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         return response.content.decode()
 
-    def test_option_labels_hidden_for_the_whole_group(self):
+    def test_option_labels_marked_narrow_only_for_the_whole_group(self):
         html = self.render(hide=True)
-        self.assertNotIn("survey-question-option-label", html)
+        # One marked span per option of both rows of the group.
+        self.assertEqual(html.count("survey-question-option-label-narrow-only"), 4)
+        self.assertIn(
+            '<span class="survey-question-option-label survey-question-option-label-narrow-only">Yes</span>', html
+        )
         self.assertIn(">Row 2<", html)
-        # The option cells stay; only the label spans inside them go.
+        # The option cells stay; the label spans inside them are only marked.
         self.assertIn("survey-question-option-cell", html)
+
+    def test_option_labels_not_marked_without_the_flag(self):
+        html = self.render(hide=False)
+        self.assertNotIn("survey-question-option-label-narrow-only", html)
 
     def test_header_rows_still_rendered(self):
         html = self.render(hide=True)

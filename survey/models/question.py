@@ -113,9 +113,9 @@ class Question(models.Model):
         help_text=_("Show the header-only fields: header rows, row label and answer-label hiding."),
     )
     hide_answer_labels = models.BooleanField(
-        _("Hide answer labels"),
+        _("Shared answer labels"),
         default=False,
-        help_text=_("Do not show the label next to each answer option of this question's group; header rows can label the options instead."),
+        help_text=_("Every question of this group offers the same answer options, so one set of labels describes them all. A wide screen shows that set once, in the header rows; a narrow screen shows it next to each answer option instead."),
     )
     group_with_previous = models.BooleanField(
         _("Group with preceding question"),

@@ -19,6 +19,23 @@
   text-align: center;
   font-weight: normal;
 }
+/* A group whose answer labels are hidden keeps them in the markup for narrow
+ * screens, where the shared header row is too wide to be useful: below the
+ * breakpoint the per-option labels do the labelling and the shared header row
+ * goes away, above it the header row does and the labels go away. Both
+ * classes are named so this default outranks a snippet's single-class rule on
+ * .survey-question-option-label; a snippet can still override it with a
+ * selector of its own that is at least as specific. */
+@media (min-width: 721px) {
+  .survey-question-option-label.survey-question-option-label-narrow-only {
+    display: none;
+  }
+}
+@media (max-width: 720px) {
+  .survey-question-header-line {
+    display: none;
+  }
+}
 /* 5-point likert and integer scale keep the label under each button. */
 .likert-5-question-option,
 .integer-scale-question-option {
