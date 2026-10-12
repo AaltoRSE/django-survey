@@ -23,21 +23,26 @@
      * `table-layout: auto;` to let column widths follow their content. */
   }
 
-  /* Answer lines: zebra + hover, as before. */
+  /* Answer lines: zebra + hover on the row, not on its cells. Once the cells
+   * stop being table cells their heights follow their own content, so a tint
+   * on the cells leaves ragged bands; the row covers its full height. */
+  .survey-question-line {
+    transition: background-color 140ms ease;
+  }
+
   .survey-question-line > td {
     padding: 14px 8px;
     vertical-align: middle;
     border: 0;
     border-bottom: 1px solid var(--aware-hairline);
-    transition: background-color 140ms ease;
   }
 
-  .survey-question-line:nth-child(even) > td {
+  .survey-question-line:nth-child(even) {
     background: var(--aware-row-tint);
   }
 
-  .survey-question-line:focus-within > td,
-  .survey-question-line:hover > td {
+  .survey-question-line:focus-within,
+  .survey-question-line:hover {
     background: var(--aware-accent-tint);
   }
 
