@@ -35,6 +35,27 @@
   .survey-question-header-line {
     display: none;
   }
+  /* Too narrow for one answer line per row: the cells leave table layout, so
+   * the row label takes a line of its own and the options wrap onto as many
+   * lines as they need. The flex basis is the wrap trigger — options share a
+   * line until 72px each no longer fits. A flex container also drops the
+   * whitespace between cells, which would otherwise show as a gap. */
+  .survey-question-table,
+  .survey-question-table tbody {
+    display: block;
+  }
+  .survey-question-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+  .survey-question-label-cell,
+  .survey-question-answer-cell {
+    flex: 1 1 100%;
+  }
+  .survey-question-option-cell {
+    flex: 1 1 72px;
+  }
 }
 /* 5-point likert and integer scale keep the label under each button. */
 .likert-5-question-option,

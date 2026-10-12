@@ -39,16 +39,9 @@
                 {% endif %}
             </td>
             {% endif %}
-            {% if form.field.as_choice_list %}
-            {% for choice in form %}
-            <td class="{{ form.field.option_cell_class }} {{ form.field.option_cell_number_class_prefix }}{{ forloop.counter }}">
-                <label class="{{ form.field.option_class }} {{ form.field.option_number_class_prefix }}{{ forloop.counter }}">
-                    {{ choice.tag }}
-                    {# Always emitted: a narrow screen shows these instead of the group's shared header row. #}
-                    <span class="survey-question-option-label{% if form.field.group_hide_answer_labels %} survey-question-option-label-narrow-only{% endif %}">{{ choice.choice_label }}</span>
-                </label>
-            </td>
-            {% endfor %}
+            {# One line per cell: whitespace between cells would show as a gap once they stop being table cells. #}
+            {# The option label is always emitted: a narrow screen shows it instead of the group's shared header row. #}
+            {% if form.field.as_choice_list %}{% for choice in form %}<td class="{{ form.field.option_cell_class }} {{ form.field.option_cell_number_class_prefix }}{{ forloop.counter }}"><label class="{{ form.field.option_class }} {{ form.field.option_number_class_prefix }}{{ forloop.counter }}">{{ choice.tag }}<span class="survey-question-option-label{% if form.field.group_hide_answer_labels %} survey-question-option-label-narrow-only{% endif %}">{{ choice.choice_label }}</span></label></td>{% endfor %}
             {% else %}
             <td class="{{ form.field.answer_cell_class }}"{% if form.field.group_option_count > 1 %} colspan="{{ form.field.group_option_count }}"{% endif %}>
 	            <span class="help-inline {{ form.field.errors_class }}">
