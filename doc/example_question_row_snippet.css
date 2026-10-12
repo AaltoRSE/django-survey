@@ -167,12 +167,6 @@
     overflow-wrap: normal;   /* wrap at spaces, never mid-word */
   }
 
-  @media (min-width: 721px) {
-    .survey-question-option-label.survey-question-option-label-narrow-only {
-      display: none;
-    }
-  }
-
   /* Will-not-answer / other companions: a normal checkbox/input row,
    * not an option chip. Compound selectors so snippet order can't
    * flip them back to the chip layout. */
@@ -239,19 +233,10 @@
     outline: none;
   }
 
-  /* Narrow screens: the table, its rows and its cells all become blocks, so
-   * each label sits above its own answer. The stacking rules come first and
-   * the metric rules after, because the generic rules below deliberately
-   * win the ties they already win today. */
+  /* Narrow screens: metrics only. custom.css takes the table out of table
+   * layout here, so the label sits above its own answer and the options wrap;
+   * declaring any of that again would only risk winning a tie against it. */
   @media (max-width: 720px) {
-    .survey-question-table,
-    .survey-question-table tbody,
-    .survey-question-line,
-    .survey-question-label-cell,
-    .survey-question-answer-cell {
-      display: block;
-      width: 100%;
-    }
 
     .survey-question-label-cell {
       padding: 14px 4px 6px !important;
@@ -286,12 +271,6 @@
 
     .survey-question-line > td {
       padding: 10px 3px;
-    }
-
-    /* No room for a shared header row: each option carries its own label
-     * here, so the header row goes away. */
-    .survey-question-header-line {
-      display: none;
     }
 
     .survey-question-option {
