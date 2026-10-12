@@ -303,11 +303,11 @@ class ResponseForm(models.ModelForm):
         if self.survey.display_method == Survey.BY_CATEGORY:
             if self.step is not None and self.step < len(self.categories):
                 return [self.categories[self.step]]
-            return [Category(name="No category", description="No cat desc")]
+            return [Category(name="No category")]
         else:
             extras = []
             if self.qs_with_no_cat:
-                extras = [Category(name="No category", description="No cat desc")]
+                extras = [Category(name="No category")]
 
             return self.categories + extras
 
