@@ -1,3 +1,5 @@
+import re
+
 from django import forms
 from django.contrib import admin
 from django_ace import AceWidget
@@ -9,6 +11,9 @@ from survey.exporter.csv import Survey2Csv
 from survey.exporter.tex import Survey2Tex
 from survey.models import Answer, Category, CssSnippet, Question, QuestionCondition, Response, Survey
 from survey.models.question import SCALE_PRESETS
+
+# id of the page's shared <datalist> of condition parent questions.
+CONDITION_DATALIST_ID = "condition-question-list"
 
 
 class ConditionInline(admin.StackedInline):
@@ -79,6 +84,36 @@ class ParentQuestionChoiceField(forms.ModelChoiceField):
         return f"question {obj.order} – {text}"
 
 
+class QuestionDatalistField(ParentQuestionChoiceField):
+    """Parent question picked by typing into a text input backed by a shared
+    <datalist>, instead of a <select> that repeats every option per form.
+
+    The typed text is one of the labels ("question 12 – text"); its question
+    number selects the question from the queryset. Cleans to a Question like
+    ModelChoiceField, so the condition code is unaffected."""
+
+    def prepare_value(self, value):
+        # Bound data is already the typed text; initial is a pk or Question.
+        if value in self.empty_values or isinstance(value, str):
+            return value
+        if not isinstance(value, Question):
+            value = self.queryset.filter(pk=value).first()
+            if value is None:
+                return ""
+        return self.label_from_instance(value)
+
+    def to_python(self, value):
+        if value in self.empty_values:
+            return None
+        match = re.match(r"\s*(?:question\s+)?(\d+)", str(value))
+        if match is None:
+            raise forms.ValidationError(self.error_messages["invalid_choice"], code="invalid_choice")
+        try:
+            return self.queryset.get(order=int(match.group(1)))
+        except (Question.DoesNotExist, Question.MultipleObjectsReturned):
+            raise forms.ValidationError(self.error_messages["invalid_choice"], code="invalid_choice")
+
+
 class QuestionInlineForm(ScalePresetForm):
     """Question form with a one-row condition editor (question/operator/value),
     flattened from the QuestionCondition one-to-one row so researchers can
@@ -96,11 +131,11 @@ class QuestionInlineForm(ScalePresetForm):
         (QuestionCondition.OP_GE, "is at least"),
     ]
 
-    condition_question = ParentQuestionChoiceField(
+    condition_question = QuestionDatalistField(
         queryset=Question.objects.none(),
         required=False,
         label="Show only if",
-        widget=forms.Select(attrs={"style": "width: 20em"}),
+        widget=forms.TextInput(attrs={"style": "width: 20em", "list": CONDITION_DATALIST_ID}),
     )
     condition_operator = forms.ChoiceField(
         choices=OPERATOR_LABELS,
