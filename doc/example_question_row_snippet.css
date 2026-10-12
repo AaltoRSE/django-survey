@@ -122,7 +122,7 @@
     display: flex;
     flex-direction: column-reverse;   /* label above the input */
     align-items: center;
-    justify-content: flex-end;
+    justify-content: flex-start;
     gap: 8px;
     min-width: 0;
     min-height: 70px;
@@ -276,10 +276,6 @@
     .survey-question-option {
       padding: 6px 2px;
     }
-
-    .survey-question-option-label {
-      font-size: 0.6875rem;
-    }
   }
 
   /* Phones: one option per line. */
@@ -290,7 +286,9 @@
       grid-template-columns: 1fr;
     }
 
-    .survey-question-option {
+    /* Scoped to the answer-cell lists: a matrix option cell keeps its label
+     * above the input. */
+    .survey-question-row .survey-question-option {
       flex-direction: row;
       justify-content: flex-start;
       min-height: 48px;
