@@ -19,6 +19,45 @@
   text-align: center;
   font-weight: normal;
 }
+/* A group with shared answer labels keeps them in the markup for narrow
+ * screens, where the shared header row is too wide to be useful: below the
+ * breakpoint the per-option labels do the labelling and the header row goes
+ * away, above it the header row does and the labels go away. Both classes are
+ * named so a snippet's single-class rule on .survey-question-option-label
+ * cannot win the tie by load order. */
+@media (min-width: 721px) {
+  .survey-question-option-label.survey-question-option-label-narrow-only {
+    display: none;
+  }
+}
+@media (max-width: 720px) {
+  .survey-question-header-line {
+    display: none;
+  }
+  /* Too narrow for one answer line per row: the cells leave table layout, so
+   * the row label takes a line of its own and the options wrap onto as many
+   * lines as they need. A flex container also drops the whitespace between
+   * cells, which would otherwise show as a gap. */
+  .survey-question-table,
+  .survey-question-table tbody {
+    display: block;
+  }
+  .survey-question-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+  .survey-question-label-cell,
+  .survey-question-answer-cell {
+    flex: 1 1 100%;
+  }
+  .survey-question-option-cell {
+    /* The basis sets the wrap point; without min-width the cells shrink to
+     * their min-content width before the row breaks. */
+    flex: 1 1 72px;
+    min-width: 72px;
+  }
+}
 /* A group whose answer labels are hidden keeps them in the markup for narrow
  * screens, where the shared header row is too wide to be useful: below the
  * breakpoint the per-option labels do the labelling and the shared header row
