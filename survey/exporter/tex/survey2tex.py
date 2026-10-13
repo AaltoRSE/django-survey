@@ -96,6 +96,11 @@ class Survey2Tex(Survey2X):
                 opts["type"] = None
                 q2tex = q2tex_class(question, latex_label=i, **opts)
                 question_synthesis += q2tex.tex()
+        if question.other_option:
+            # The "other" texts are free text: listed as quotes after the charts.
+            other_texts = question.answers.exclude(other_text__isnull=True).exclude(other_text="")
+            for j, other_text in enumerate(other_texts.values_list("other_text", flat=True)):
+                question_synthesis += Question2TexRaw.TEX_SKELETON % (other_text, _("Participant"), j)
         section_title = Question2Tex.html2latex(question.text)
         return f"""
 \\clearpage{{}}

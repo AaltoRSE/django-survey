@@ -321,7 +321,7 @@ class SurveyAdmin(admin.ModelAdmin):
 
 
 class AnswerBaseInline(admin.StackedInline):
-    fields = ("question", "body")
+    fields = ("question", "body", "other_text")
     readonly_fields = ("question",)
     extra = 0
     model = Answer

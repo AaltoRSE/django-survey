@@ -63,6 +63,7 @@ class Survey2Csv(Survey2X):
                 cell += ans
         LOGGER.debug("\t\t%s : %s", answer.question.pk, cell)
         user_answers[answer.question.pk] = cell
+        user_answers[f"{answer.question.pk}_other"] = answer.other_text or ""
 
     def get_header_and_order(self):
         header = [_("user")]  # , u"entity"]
@@ -72,6 +73,10 @@ class Survey2Csv(Survey2X):
         for question in questions:
             header.append(export_name(question, leads[question.pk]))
             question_order.append(question.pk)
+            if question.other_option:
+                # The "other" text gets its own column next to the answer.
+                header.append(f"{export_name(question, leads[question.pk])} ({_('other')})")
+                question_order.append(f"{question.pk}_other")
         return header, question_order
 
     def __str__(self):

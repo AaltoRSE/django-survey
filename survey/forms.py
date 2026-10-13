@@ -103,7 +103,6 @@ def questions_by_category(questions):
 
 
 class ResponseForm(models.ModelForm):
-    OTHER_SENTINEL = "__other__"
     WILL_NOT_ANSWER_SENTINEL = "__will-not-answer__"
 
     FIELDS = {
@@ -165,18 +164,20 @@ class ResponseForm(models.ModelForm):
         self._all_questions = all_questions
         self._questions_by_id = {question.pk: question for question in all_questions}
 
-        self._other_initial = {}
         self._other_questions = {question.pk: question for question in all_questions if question.other_option}
         self._wna_initial = set()
+        # Loaded answer values that match none of the question's current
+        # choices; they are shown in the "other" field instead.
+        self._stale_other_values = {}
         self._wna_questions = {question.pk: question for question in all_questions if question.will_not_answer_option}
         # When the form is rebuilt from session data (multi-step finalize in
-        # SurveyDetail.treat_valid_form), the stored answer for an "other"-enabled
-        # question is the raw free text, which would fail ChoiceField validation.
-        # Map it back to the sentinel plus companion field before binding.
+        # SurveyDetail.treat_valid_form), a stored "will not answer" sentinel
+        # would fail ChoiceField validation. Map it back to the checkbox
+        # companion field before binding.
         if args and isinstance(args[0], dict) and not hasattr(args[0], "getlist"):
-            args = (self._restore_wna_sentinels(self._restore_other_sentinels(args[0])),) + args[1:]
+            args = (self._restore_wna_sentinels(args[0]),) + args[1:]
         elif isinstance(kwargs.get("data"), dict) and not hasattr(kwargs["data"], "getlist"):
-            kwargs["data"] = self._restore_wna_sentinels(self._restore_other_sentinels(kwargs["data"]))
+            kwargs["data"] = self._restore_wna_sentinels(kwargs["data"])
 
         super().__init__(*args, **kwargs)
         self.uuid = uuid.uuid4().hex
@@ -207,23 +208,6 @@ class ResponseForm(models.ModelForm):
         if not self.survey.editable_answers and self.response is not None:
             for name in self.fields.keys():
                 self.fields[name].widget.attrs["disabled"] = True
-
-    def _restore_other_sentinels(self, data):
-        """Return a copy of a plain data dict with raw "other" text replaced by
-        the sentinel choice and a companion text entry, so choice validation
-        passes and clean() re-merges the text."""
-        data = dict(data)
-        for question in self._other_questions.values():
-            name = f"question_{question.pk}"
-            value = data.get(name)
-            if not isinstance(value, str) or value in ("", self.OTHER_SENTINEL):
-                continue
-            clean_slugs = {slug for slug, _label in question.get_choices()}
-            # A choiceless (free-input) question stores the text directly.
-            if clean_slugs and value not in clean_slugs:
-                data[name] = self.OTHER_SENTINEL
-                data[f"{name}_other"] = value
-        return data
 
     def _restore_wna_sentinels(self, data):
         """Return a copy of a plain data dict where a stored "will not answer"
@@ -376,7 +360,10 @@ class ResponseForm(models.ModelForm):
         answer = self._get_preexisting_answer(question)
         if answer:
             # Initialize the field with values from the database if any
-            if question.type == Question.SELECT_MULTIPLE:
+            if answer.body == self.WILL_NOT_ANSWER_SENTINEL:
+                # Kept as is: slugify() would strip its underscores.
+                initial = answer.body
+            elif question.type == Question.SELECT_MULTIPLE:
                 initial = []
                 if answer.body == "[]":
                     pass
@@ -385,12 +372,14 @@ class ResponseForm(models.ModelForm):
                     unformated_choices = answer.body[1:-1].strip()
                     for unformated_choice in unformated_choices.split(settings.CHOICES_SEPARATOR):
                         choice = unformated_choice.split("'")[1]
-                        initial.append(slugify(choice))
+                        initial.append(slugify(choice, allow_unicode=True))
                 else:
                     # Only one element
-                    initial.append(slugify(answer.body))
+                    initial.append(slugify(answer.body, allow_unicode=True))
             else:
                 initial = answer.body
+            if question.pk in self._other_questions:
+                initial = self._move_stale_values_to_other(question, initial)
         if data:
             # Initialize the field field from a POST request, if any.
             # Replace values from the database
@@ -403,17 +392,52 @@ class ResponseForm(models.ModelForm):
                     initial = datetime.datetime.fromisoformat(initial)
             except ValueError:
                 pass
-        if question.pk in self._other_questions and isinstance(initial, str) and initial not in ("", self.OTHER_SENTINEL):
-            clean_slugs = {slug for slug, _label in question.get_choices()}
-            # A choiceless (free-input) question keeps the text as its value.
-            if clean_slugs and initial not in clean_slugs:
-                # The stored body is free "other" text, not one of the choice slugs.
-                self._other_initial[question.pk] = initial
-                initial = self.OTHER_SENTINEL
         if question.pk in self._wna_questions and initial == self.WILL_NOT_ANSWER_SENTINEL:
             self._wna_initial.add(question.pk)
             initial = None
         return initial
+
+    def get_question_other_initial(self, question, data):
+        """Get the initial value of a question's "other" field.
+
+        :param Question question: The question
+        :param dict data: Value from a POST request.
+        :rtype: String or None"""
+        initial = None
+        answer = self._get_preexisting_answer(question)
+        if answer:
+            # Initialize the field with the value from the database if any
+            initial = answer.other_text
+            stale_values = self._stale_other_values.get(question.pk)
+            if stale_values:
+                initial = "; ".join(([initial] if initial else []) + stale_values)
+        if data:
+            # Initialize the field from a POST request, if any.
+            # Replace the value from the database
+            initial = data.get(f"question_{question.pk}_other")
+        return initial
+
+    def _move_stale_values_to_other(self, question, initial):
+        """Return a loaded answer value without the values that match none of
+        the question's choices, remembering those for the "other" field.
+
+        A value goes stale when its choice is renamed or removed after the
+        answer was saved. Questions without choices keep their value as is."""
+        choice_values = {value for value, _label in question.get_choices()}
+        if not choice_values:
+            return initial
+        values = initial if isinstance(initial, list) else [initial]
+        stale_values = [
+            value
+            for value in values
+            if value not in ("", None, self.WILL_NOT_ANSWER_SENTINEL) and value not in choice_values
+        ]
+        if not stale_values:
+            return initial
+        self._stale_other_values[question.pk] = stale_values
+        if isinstance(initial, list):
+            return [value for value in initial if value not in stale_values]
+        return None
 
     def get_question_widget(self, question):
         """Return the widget we should use for a question.
@@ -446,11 +470,6 @@ class ResponseForm(models.ModelForm):
             # select one of the options
             if question.type in [Question.SELECT, Question.SELECT_IMAGE]:
                 qchoices = tuple([("", "-------------")]) + qchoices
-            # Single-valued choice questions get the "other" sentinel as an
-            # extra choice; select-multiple keeps its choices as-is because
-            # clean() merges a single sentinel value only.
-            if question.other_option and qchoices and question.type != Question.SELECT_MULTIPLE:
-                qchoices = tuple(qchoices) + ((ResponseForm.OTHER_SENTINEL, question.other_label),)
         return qchoices
 
     @classmethod
@@ -491,9 +510,10 @@ class ResponseForm(models.ModelForm):
         :param Question lead: The question that opens this question's group
             (itself, for a standalone question)."""
         kwargs = {"label": question.label or lead.text, "required": question.required}
-        if question.pk in self._wna_questions:
-            # The checkbox companion field can substitute for an answer; clean()
-            # re-enforces requiredness once it knows whether the box is checked.
+        if question.pk in self._wna_questions or question.pk in self._other_questions:
+            # The "will not answer" checkbox or the "other" text can substitute
+            # for an answer; clean() re-enforces requiredness once it knows
+            # whether they are filled. Invalid input is still rejected.
             kwargs["required"] = False
         initial = self.get_question_initial(question, data)
         if initial:
@@ -581,8 +601,8 @@ class ResponseForm(models.ModelForm):
             other_field.show_required = False
             other_field.as_choice_list = False
             other_field.group_option_count = option_count
-            other_initial = self._other_initial.get(question.pk)
-            if other_initial is not None:
+            other_initial = self.get_question_other_initial(question, data)
+            if other_initial:
                 other_field.initial = other_initial
             self.fields[f"question_{question.pk}_other"] = other_field
 
@@ -625,13 +645,24 @@ class ResponseForm(models.ModelForm):
         if condition is not None:
             # Requiredness is re-enforced in clean() once we know the question is visible.
             field.required = False
-            field.widget.attrs["data-depends-on"] = f"question_{condition.depends_on_id}"
-            field.widget.attrs["data-operator"] = condition.operator
+            condition_attrs = {
+                "data-depends-on": f"question_{condition.depends_on_id}",
+                "data-operator": condition.operator,
+            }
             if condition.operator == QuestionCondition.OP_IN:
                 slugs = ",".join(slugify(label) for label in condition._clean_choice_labels())
-                field.widget.attrs["data-cond-choices"] = slugs
+                condition_attrs["data-cond-choices"] = slugs
             elif condition.number is not None:
-                field.widget.attrs["data-cond-number"] = condition.number
+                condition_attrs["data-cond-number"] = condition.number
+            field.widget.attrs.update(condition_attrs)
+            # The "other" and "will not answer" rows are shown and hidden
+            # together with their question.
+            other_field = self.fields.get(f"question_{question.pk}_other")
+            if other_field is not None:
+                other_field.widget.attrs.update(condition_attrs)
+            wna_field = self.fields.get(f"question_{question.pk}_wna")
+            if wna_field is not None:
+                wna_field.widget.attrs.update(condition_attrs)
 
     def _step_question_ids(self):
         """Return the pks of the questions that are fields on this form instance."""
@@ -656,20 +687,21 @@ class ResponseForm(models.ModelForm):
             other_name = f"{field_name}_other"
             if field_name not in self.fields:
                 continue
-            if cleaned_data.get(field_name) == self.OTHER_SENTINEL:
-                other_text = (cleaned_data.get(other_name) or "").strip()
-                if not other_text:
-                    if question.required:
-                        self.add_error(field_name, "This field is required.")
-                    else:
-                        # Don't store the literal sentinel as the answer.
-                        cleaned_data[field_name] = ""
-                else:
-                    cleaned_data[field_name] = other_text
-            # Always pop the companion field: save() creates an Answer for every
-            # "question_*" cleaned_data key (parsing the pk as split("_")[1]), so
-            # leaving it in would create a duplicate Answer for the same question.
-            cleaned_data.pop(other_name, None)
+            other_text = (cleaned_data.get(other_name) or "").strip()
+            # Questions with a "will not answer" checkbox are checked in the
+            # loop below, which also knows whether the box is ticked.
+            if (
+                question.required
+                and question_id not in self._wna_questions
+                and not cleaned_data.get(field_name)
+                and not other_text
+                and field_name not in self.errors
+            ):
+                self.add_error(field_name, "This field is required.")
+            # The companion stays in cleaned_data (the view keeps it in the
+            # session between steps); save() stores it as the answer's
+            # other_text instead of replacing the answer.
+            cleaned_data[other_name] = other_text
 
         for question_id, question in self._wna_questions.items():
             field_name = f"question_{question_id}"
@@ -677,9 +709,19 @@ class ResponseForm(models.ModelForm):
             if field_name not in self.fields:
                 continue
             if cleaned_data.get(wna_name):
-                # Checkbox wins over any radio value submitted alongside it.
+                # Checkbox wins over any value submitted alongside it, so the
+                # value's own validation errors no longer apply.
+                self.errors.pop(field_name, None)
                 cleaned_data[field_name] = self.WILL_NOT_ANSWER_SENTINEL
-            elif question.required and not cleaned_data.get(field_name):
+                # No "other" text is kept for a question the respondent won't answer.
+                if f"{field_name}_other" in cleaned_data:
+                    cleaned_data[f"{field_name}_other"] = ""
+            elif (
+                question.required
+                and not cleaned_data.get(field_name)
+                and not cleaned_data.get(f"{field_name}_other")
+                and field_name not in self.errors
+            ):
                 self.add_error(field_name, "This field is required.")
             # Always pop the companion field: save() creates an Answer for every
             # "question_*" cleaned_data key (parsing the pk as split("_")[1]), so
@@ -710,6 +752,7 @@ class ResponseForm(models.ModelForm):
                 question.pk in self._conditions
                 and question.required
                 and not cleaned_data.get(field_name)
+                and not cleaned_data.get(other_name)
                 and field_name not in self.errors
             ):
                 self.add_error(field_name, "This field is required.")
@@ -779,7 +822,7 @@ class ResponseForm(models.ModelForm):
         # create an answer object for each question and associate it with this
         # response.
         for field_name, field_value in list(self.cleaned_data.items()):
-            if field_name.startswith("question_"):
+            if field_name.startswith("question_") and not field_name.endswith("_other"):
                 # warning: this way of extracting the id is very fragile and
                 # entirely dependent on the way the question_id is encoded in
                 # the field name in the __init__ method of this form class.
@@ -793,6 +836,7 @@ class ResponseForm(models.ModelForm):
                     # TODO Handling of SELECT IMAGE
                     LOGGER.debug("Question.SELECT_IMAGE not implemented, please use : %s and %s", value, img_src)
                 answer.body = field_value
+                answer.other_text = self.cleaned_data.get(f"{field_name}_other") or None
                 data["responses"].append((answer.question.id, answer.body))
                 LOGGER.debug("Creating answer for question %d of type %s : %s", q_id, answer.question.type, field_value)
                 answer.response = response

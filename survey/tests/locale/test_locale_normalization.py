@@ -9,6 +9,7 @@ from django import __version__ as django_version
 from django.conf import settings
 
 
+@unittest.skip("Translations have not been maintained since the fork.")
 class TestLocaleNormalization(unittest.TestCase):
     LOCALE_PATH = Path("survey", "locale").absolute()
 

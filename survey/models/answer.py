@@ -22,6 +22,8 @@ class Answer(models.Model):
     created = models.DateTimeField(_("Creation date"), auto_now_add=True)
     updated = models.DateTimeField(_("Update date"), auto_now=True)
     body = models.TextField(_("Content"), blank=True, null=True)
+    # Free text of the question's "other" field, kept apart from the answer.
+    other_text = models.TextField(_("Other text"), blank=True, null=True)
 
     def __init__(self, *args, **kwargs):
         try:

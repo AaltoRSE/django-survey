@@ -61,27 +61,33 @@ class OtherOptionTests(TestCase):
             self.survey, Question.RADIO, order=1, choices="Red,Blue", text="Color", other_option=True
         )
 
-    def test_other_round_trip_creates_single_answer_with_raw_text(self):
-        data = qd(
-            {
-                f"question_{self.question.pk}": ResponseForm.OTHER_SENTINEL,
-                f"question_{self.question.pk}_other": "Chartreuse",
-            }
-        )
+    def test_other_text_alone_answers_a_required_question(self):
+        data = qd({f"question_{self.question.pk}_other": "Chartreuse"})
         form = ResponseForm(data, survey=self.survey, user=AnonymousUser(), step=0)
         self.assertTrue(form.is_valid(), form.errors)
         response = form.save()
         answers = Answer.objects.filter(response=response, question=self.question)
         self.assertEqual(answers.count(), 1)
-        self.assertEqual(answers.first().body, "Chartreuse")
+        self.assertEqual(answers.first().body, "")
+        self.assertEqual(answers.first().other_text, "Chartreuse")
 
-    def test_other_selected_with_empty_text_on_required_question_errors(self):
-        data = qd(
-            {
-                f"question_{self.question.pk}": ResponseForm.OTHER_SENTINEL,
-                f"question_{self.question.pk}_other": "",
-            }
-        )
+    def test_choice_and_other_text_are_both_stored(self):
+        data = qd({f"question_{self.question.pk}": "red", f"question_{self.question.pk}_other": "Chartreuse"})
+        form = ResponseForm(data, survey=self.survey, user=AnonymousUser(), step=0)
+        self.assertTrue(form.is_valid(), form.errors)
+        response = form.save()
+        answer = Answer.objects.get(response=response, question=self.question)
+        self.assertEqual(answer.body, "red")
+        self.assertEqual(answer.other_text, "Chartreuse")
+
+    def test_empty_answer_and_other_text_on_required_question_errors(self):
+        data = qd({f"question_{self.question.pk}_other": "  "})
+        form = ResponseForm(data, survey=self.survey, user=AnonymousUser(), step=0)
+        self.assertFalse(form.is_valid())
+        self.assertIn(f"question_{self.question.pk}", form.errors)
+
+    def test_invalid_answer_errors_even_with_other_text(self):
+        data = qd({f"question_{self.question.pk}": "green", f"question_{self.question.pk}_other": "Chartreuse"})
         form = ResponseForm(data, survey=self.survey, user=AnonymousUser(), step=0)
         self.assertFalse(form.is_valid())
         self.assertIn(f"question_{self.question.pk}", form.errors)
@@ -91,8 +97,8 @@ class OtherOptionTests(TestCase):
         self.question.save()
         page = self.client.get(reverse("survey-detail", kwargs={"id": self.survey.pk}))
         self.assertContains(page, f"question-{self.question.pk}-other-option")
-        # Once as the sentinel radio choice, once next to the companion input.
-        self.assertContains(page, '<span class="survey-question-option-label">Something else</span>', count=2)
+        # Only next to the companion input: "other" is not one of the choices.
+        self.assertContains(page, '<span class="survey-question-option-label">Something else</span>', count=1)
 
     def test_plain_question_input_not_wrapped_in_a_label(self):
         survey = make_survey(name="Plain survey")
@@ -110,18 +116,31 @@ class OtherOptionTests(TestCase):
         self.assertEqual(answers.count(), 1)
         self.assertEqual(answers.first().body, "red")
 
-    def test_reedit_maps_stored_free_text_to_other_sentinel(self):
+    def test_reedit_moves_stale_value_to_other_field(self):
         user = User.objects.create_user(username="reeditor", password="testpass")
         response = Response.objects.create(survey=self.survey, user=user, interview_uuid=str(uuid.uuid4()))
-        store_answer(self.question, response, "Some random text")
+        answer = store_answer(self.question, response, "Some random text")
+        answer.other_text = "Typed"
+        answer.save()
 
         form = ResponseForm(survey=self.survey, user=user, step=0)
         field = form.fields[f"question_{self.question.pk}"]
         other_field = form.fields[f"question_{self.question.pk}_other"]
-        self.assertEqual(field.initial, ResponseForm.OTHER_SENTINEL)
-        self.assertEqual(other_field.initial, "Some random text")
+        self.assertIsNone(field.initial)
+        self.assertEqual(other_field.initial, "Typed; Some random text")
 
-    def test_reedit_of_normal_choice_does_not_trigger_other_sentinel(self):
+    def test_reedit_restores_stored_other_text(self):
+        user = User.objects.create_user(username="reeditor4", password="testpass")
+        response = Response.objects.create(survey=self.survey, user=user, interview_uuid=str(uuid.uuid4()))
+        answer = store_answer(self.question, response, "red")
+        answer.other_text = "Chartreuse"
+        answer.save()
+
+        form = ResponseForm(survey=self.survey, user=user, step=0)
+        self.assertEqual(form.fields[f"question_{self.question.pk}"].initial, "red")
+        self.assertEqual(form.fields[f"question_{self.question.pk}_other"].initial, "Chartreuse")
+
+    def test_reedit_of_normal_choice_does_not_fill_other_field(self):
         user = User.objects.create_user(username="reeditor2", password="testpass")
         response = Response.objects.create(survey=self.survey, user=user, interview_uuid=str(uuid.uuid4()))
         store_answer(self.question, response, "red")
@@ -129,18 +148,19 @@ class OtherOptionTests(TestCase):
         form = ResponseForm(survey=self.survey, user=user, step=0)
         field = form.fields[f"question_{self.question.pk}"]
         self.assertEqual(field.initial, "red")
+        self.assertFalse(form.fields[f"question_{self.question.pk}_other"].initial)
 
-    def test_session_rebind_with_raw_other_text_round_trips(self):
+    def test_session_rebind_round_trips_other_text(self):
         # Mirrors SurveyDetail.treat_valid_form: the session stores the
-        # cleaned answer body (raw "other" text, not the sentinel) as a plain
-        # dict, and the form is rebuilt from it positionally.
-        data = {f"question_{self.question.pk}": "Chartreuse"}
+        # cleaned answer and its "other" text as a plain dict, and the form
+        # is rebuilt from it positionally.
+        data = {f"question_{self.question.pk}": "red", f"question_{self.question.pk}_other": "Chartreuse"}
         form = ResponseForm(data, survey=self.survey, user=AnonymousUser(), step=0)
         self.assertTrue(form.is_valid(), form.errors)
         response = form.save()
-        answers = Answer.objects.filter(response=response, question=self.question)
-        self.assertEqual(answers.count(), 1)
-        self.assertEqual(answers.first().body, "Chartreuse")
+        answer = Answer.objects.get(response=response, question=self.question)
+        self.assertEqual(answer.body, "red")
+        self.assertEqual(answer.other_text, "Chartreuse")
 
 
 class OtherOptionValidationTests(TestCase):

@@ -1,6 +1,6 @@
 /*
- * Client-side show/hide for conditional questions and "other, please
- * specify" free-text fields. This is UX only: the server-side clean() in
+ * Client-side show/hide for conditional questions, and disabling of answers
+ * whose "will not answer" checkbox is ticked. This is UX only: the server-side clean() in
  * survey.forms.ResponseForm is the source of truth (no-JS users see every
  * field; hidden/irrelevant answers are discarded server-side).
  */
@@ -129,24 +129,6 @@
         }
     }
 
-    function updateOtherFields() {
-        var others = document.querySelectorAll("[data-other-for]");
-        for (var i = 0; i < others.length; i++) {
-            var other = others[i];
-            var parentName = other.getAttribute("data-other-for");
-            var values = fieldValue(parentName);
-            var isOther = values !== undefined && values.indexOf("__other__") !== -1;
-            var row = other.closest("tr");
-            if (row) {
-                row.hidden = !isOther;
-            }
-            other.disabled = !isOther;
-            if (!isOther) {
-                other.value = "";
-            }
-        }
-    }
-
     function updateWnaFields() {
         var checkboxes = document.querySelectorAll("[data-wna-for]");
         for (var i = 0; i < checkboxes.length; i++) {
@@ -158,6 +140,11 @@
                 if (checkbox.checked) {
                     inputs[j].checked = false;
                 }
+            }
+            // The "other" text is disabled too, so it isn't submitted.
+            var others = document.querySelectorAll('[data-other-for="' + parentName + '"]');
+            for (var k = 0; k < others.length; k++) {
+                others[k].disabled = checkbox.checked;
             }
         }
     }
@@ -181,7 +168,6 @@
 
     function updateAll() {
         updateConditionalFields();
-        updateOtherFields();
         updateWnaFields();
         updateGroupVisibility();
     }
