@@ -1,6 +1,7 @@
 import logging
 
 from django.conf import settings
+from django.http import Http404
 from django.shortcuts import redirect, render, reverse
 from django.views.generic import View
 
@@ -117,6 +118,9 @@ class SurveyDetail(View):
         next_url = form.next_step_url()
         response = None
         if survey.is_all_in_one_page():
+            if kwargs.get("survey_preview"):
+                # An admin previewing a survey users cannot answer: no saving.
+                raise Http404
             response = form.save()
         else:
             # when it's the last step with visible questions
@@ -137,6 +141,9 @@ class SurveyDetail(View):
 
     def _finalize(self, survey, kwargs, request, session_key, session_data):
         """Rebuild the full response from the session, validate, save, and redirect."""
+        if kwargs.get("survey_preview"):
+            # An admin previewing a survey users cannot answer: no saving.
+            raise Http404
         save_form = ResponseForm(session_data, survey=survey, user=request.user)
         response = None
         if save_form.is_valid():
