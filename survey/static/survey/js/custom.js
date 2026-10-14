@@ -5,7 +5,7 @@ $(document).ready(function () {
     dateInputFields.flatpickr();
   }
   // Time inputs use flatpickr's time-only picker; disableMobile keeps it
-  // instead of the phone's native picker, and allowInput lets the time be typed.
+  // instead of the phone's native picker.
   const timeInputFields = $("input.time");
   if (timeInputFields.length > 0) {
     timeInputFields.flatpickr({
@@ -13,7 +13,6 @@ $(document).ready(function () {
       noCalendar: true,
       dateFormat: "H:i",
       time_24hr: true,
-      allowInput: true,
       disableMobile: true,
     });
   }
