@@ -16,4 +16,14 @@ $(document).ready(function () {
       disableMobile: true,
     });
   }
+  // Date and time inputs work the same way, with the calendar shown.
+  const datetimeInputFields = $("input.datetime");
+  if (datetimeInputFields.length > 0) {
+    datetimeInputFields.flatpickr({
+      enableTime: true,
+      dateFormat: "Y-m-d H:i",
+      time_24hr: true,
+      disableMobile: true,
+    });
+  }
 });

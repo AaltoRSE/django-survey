@@ -13,7 +13,7 @@ from survey.impl import question_groups
 from survey.models import Answer, Category, Question, QuestionCondition, Response, Survey
 from survey.models.question import OTHER_CHOICE
 from survey.signals import survey_completed
-from survey.widgets import ImageSelectWidget, NativeDateTimeInput
+from survey.widgets import ImageSelectWidget
 
 LOGGER = logging.getLogger(__name__)
 
@@ -129,7 +129,7 @@ class ResponseForm(models.ModelForm):
         Question.LIKERT_5: forms.RadioSelect,
         Question.INTEGER_SCALE: forms.RadioSelect,
         Question.TIME: forms.TimeInput(format="%H:%M"),
-        Question.DATETIME: NativeDateTimeInput,
+        Question.DATETIME: forms.DateTimeInput(format="%Y-%m-%d %H:%M"),
     }
 
     class Meta:
@@ -532,6 +532,8 @@ class ResponseForm(models.ModelForm):
             field.widget.attrs["class"] = "date"
         if question.type == Question.TIME:
             field.widget.attrs["class"] = "time"
+        if question.type == Question.DATETIME:
+            field.widget.attrs["class"] = "datetime"
         field.widget.attrs["question_type"] = question.type
         css_classes = question_css_classes(question.type, question.pk)
         lead_css_classes = question_css_classes(lead.type, lead.pk)
