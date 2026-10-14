@@ -154,7 +154,7 @@
         // hidden when every one of its lines is hidden.
         var groups = document.querySelectorAll("[data-question-group]");
         for (var i = 0; i < groups.length; i++) {
-            var rows = groups[i].querySelectorAll("tr");
+            var rows = groups[i].querySelectorAll("tr.survey-question-line");
             var anyVisible = false;
             for (var j = 0; j < rows.length; j++) {
                 if (!rows[j].hidden) {
