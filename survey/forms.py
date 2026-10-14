@@ -654,7 +654,7 @@ class ResponseForm(models.ModelForm):
                 "data-operator": condition.operator,
             }
             if condition.operator == QuestionCondition.OP_IN:
-                slugs = ",".join(slugify(label) for label in condition._clean_choice_labels())
+                slugs = ",".join(slugify(label, allow_unicode=True) for label in condition._clean_choice_labels())
                 condition_attrs["data-cond-choices"] = slugs
             elif condition.number is not None:
                 condition_attrs["data-cond-number"] = condition.number
