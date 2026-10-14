@@ -42,8 +42,8 @@ class SurveyDetail(View):
         categories = form.current_categories()
 
         asset_context = {
-            # If any of the widgets of the current form has a "date" class, flatpickr will be loaded into the template
-            "flatpickr": any(field.widget.attrs.get("class") == "date" for _, field in form.fields.items())
+            # If any of the widgets of the current form has a "date" or "time" class, flatpickr will be loaded into the template
+            "flatpickr": any(field.widget.attrs.get("class") in ("date", "time") for _, field in form.fields.items())
         }
         context = {
             "response_form": form,
@@ -78,7 +78,7 @@ class SurveyDetail(View):
             "categories": categories,
             "step": form.step,
             "asset_context": {
-                "flatpickr": any(field.widget.attrs.get("class") == "date" for _, field in form.fields.items())
+                "flatpickr": any(field.widget.attrs.get("class") in ("date", "time") for _, field in form.fields.items())
             },
         }
         if form.is_valid():
