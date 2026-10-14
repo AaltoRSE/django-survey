@@ -11,6 +11,7 @@ from django.utils.text import slugify
 from survey.conditions import evaluate
 from survey.impl import question_groups
 from survey.models import Answer, Category, Question, QuestionCondition, Response, Survey
+from survey.models.question import OTHER_CHOICE
 from survey.signals import survey_completed
 from survey.widgets import ImageSelectWidget, NativeDateTimeInput, NativeTimeInput
 
@@ -577,6 +578,9 @@ class ResponseForm(models.ModelForm):
         if question.pk in self._other_questions:
             other_field = forms.CharField(required=False, label="")
             other_field.widget.attrs["data-other-for"] = f"question_{question.pk}"
+            if question.type == Question.RADIO:
+                # other_option.js shows the text only while this option is selected.
+                other_field.widget.attrs["data-other-choice"] = slugify(OTHER_CHOICE, allow_unicode=True)
             other_field.widget.attrs["category"] = question.category.name if question.category else ""
             other_css_classes = question_css_classes("other", question.pk, suffix="other")
             other_field.label_class = other_css_classes["label_class"]

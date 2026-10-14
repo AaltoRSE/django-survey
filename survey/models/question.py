@@ -11,6 +11,9 @@ from .survey import Survey
 
 LOGGER = logging.getLogger(__name__)
 
+# The option a radio question with an "other" field offers for it.
+OTHER_CHOICE = "Other"
+
 
 CHOICES_HELP_TEXT = _(
     """The choices field is only used if the question type
@@ -177,6 +180,12 @@ class Question(models.Model):
             choice = choice.strip()
             if choice:
                 choices_list.append(choice)
+        if self.type == Question.RADIO and self.other_option:
+            # The "other" text needs an option to go with it; add one unless
+            # the choices already contain it.
+            other_slug = slugify(OTHER_CHOICE, allow_unicode=True)
+            if other_slug not in (slugify(choice, allow_unicode=True) for choice in choices_list):
+                choices_list.append(OTHER_CHOICE)
         return choices_list
 
     @property
