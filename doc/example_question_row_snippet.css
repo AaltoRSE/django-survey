@@ -238,9 +238,11 @@
     outline: none;
   }
 
-  /* Narrow screens: metrics only. custom.css takes the table out of table
-   * layout here, so the label sits above its own answer and the options wrap;
-   * declaring any of that again would only risk winning a tie against it. */
+  /* Narrow screens: one option or field per line, label beside its input,
+   * for every question type. custom.css takes the table out of table layout
+   * here, so the label sits above its own answer; this block stacks what is
+   * inside the answer. The option cell rule names the line as well, so it
+   * outranks custom.css's flex basis on .survey-question-option-cell. */
   @media (max-width: 720px) {
 
     .survey-question-label-cell {
@@ -252,39 +254,19 @@
       padding: 10px 4px 16px !important;
     }
 
+    /* Answers with their own fields (several text inputs and such). */
     .survey-question-row {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: 1fr;
       gap: 8px;
     }
 
-    .likert-5-question-row {
-      grid-template-columns: 1fr;
-    }
-
-    .likert-5-question-option {
-      flex-direction: row;
-      justify-content: flex-start;
-      min-height: 48px;
-      padding: 10px 12px;
-      text-align: left;
-    }
-
-    .likert-5-question-option-label {
-      max-width: none;
-      min-height: 0;
-    }
-
-    /* Multiple choice: one option per line, label beside its input, instead
-     * of the side-by-side columns that wrap unevenly. Two-class selectors so
-     * they outrank custom.css's flex basis on .survey-question-option-cell. */
-    .survey-question-option-cell.radio-question-option-cell,
-    .survey-question-option-cell.select-multiple-question-option-cell {
+    /* Choice options: one table cell each. */
+    .survey-question-line > .survey-question-option-cell {
       flex: 1 1 100%;
       text-align: left;
     }
 
-    .survey-question-option.radio-question-option,
-    .survey-question-option.select-multiple-question-option {
+    .survey-question-option {
       flex-direction: row;
       justify-content: flex-start;
       min-height: 48px;
@@ -292,40 +274,16 @@
       text-align: left;
     }
 
-    .radio-question-option > .survey-question-option-label,
-    .select-multiple-question-option > .survey-question-option-label {
+    .survey-question-option > .survey-question-option-label {
       max-width: none;
       min-height: 0;
+    }
+
+    .survey-question-option-label {
+      font-size: 0.9rem;
     }
 
     .survey-question-line > td {
       padding: 10px 3px;
-    }
-
-    .survey-question-option {
-      padding: 6px 2px;
-    }
-  }
-
-  /* Phones: one option per line. */
-  @media (max-width: 430px) {
-    .survey-question-row,
-    .integer-scale-question-row,
-    .radio-question-row {
-      grid-template-columns: 1fr;
-    }
-
-    /* Scoped to the answer-cell lists: a matrix option cell keeps its label
-     * above the input. */
-    .survey-question-row .survey-question-option {
-      flex-direction: row;
-      justify-content: flex-start;
-      min-height: 48px;
-      text-align: left;
-    }
-
-    .survey-question-option-label {
-      max-width: none;
-      min-height: 0;
     }
   }
