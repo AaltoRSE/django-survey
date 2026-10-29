@@ -48,8 +48,12 @@
 	                <strong> {% for error in  form.errors %}{{ error }}{% endfor %} </strong>
 	            </span> <br>
                 {% if form.field.widget.input_type == 'select' %}
-                <select name="{{form.name}}"{% if form.field.widget.attrs.disabled %} disabled{% endif %}>
-                {% endif %}
+                <div class="{{ form.field.row_class }}">
+                  <select name="{{form.name}}"{% if form.field.widget.attrs.disabled %} disabled{% endif %}>
+	                {% for field in form %}{{ field }}{% endfor %}
+                  </select>
+                </div>
+                {% else %}
                 <div class="{{ form.field.row_class }}">
 	            {% for field in form %}
 	            {% if form.field.widget_label %}
@@ -62,8 +66,6 @@
 	            {% endif %}
                 {% endfor%}
                 </div>
-                {% if form.field.widget.input_type == 'select' %}
-                </select>
                 {% endif %}
             </td>
             {% endif %}
