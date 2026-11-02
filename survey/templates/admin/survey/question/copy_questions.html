@@ -1,0 +1,23 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<p>Copy the <strong>{{ questions|length }}</strong> selected questions:</p>
+<ul>
+  {% for question in questions %}
+    <li>{{ question.survey }} / {{ question.order }}: {{ question.text|truncatechars:80 }}</li>
+  {% endfor %}
+</ul>
+
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  {% for question in questions %}
+    <input type="hidden" name="{{ action_checkbox_name }}" value="{{ question.pk }}">
+  {% endfor %}
+  <input type="hidden" name="action" value="copy_questions">
+  <input type="hidden" name="copy" value="1">
+  <div class="submit-row">
+    <input type="submit" value="Copy questions" class="default">
+  </div>
+</form>
+{% endblock %}

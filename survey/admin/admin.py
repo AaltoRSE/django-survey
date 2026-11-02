@@ -6,6 +6,7 @@ from django_ace import AceWidget
 
 from survey.actions import make_published
 from survey.admin.question_groups import grouped_rows_without_predecessor, propagate_lead_settings
+from survey.admin.question_copy import copy_questions
 from survey.admin.question_filters import CategoryListFilter, SurveyListFilter
 from survey.admin.question_order import pinned_question_ids, shift_colliding_questions
 from survey.exporter.csv import Survey2Csv
@@ -73,6 +74,7 @@ class QuestionAdmin(admin.ModelAdmin):
     list_display = ("text", "survey", "order", "type", "label", "group_with_previous")
     list_filter = (("survey", SurveyListFilter), ("category", CategoryListFilter))
     inlines = [ConditionInline]
+    actions = [copy_questions]
 
 
 admin.site.register(Question, QuestionAdmin)
