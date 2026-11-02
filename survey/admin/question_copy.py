@@ -29,7 +29,7 @@ class CopyQuestionsForm(forms.Form):
             self.fields[self.category_field_name(category)] = forms.IntegerField(
                 label=f"Order of category {category.survey} / {category}",
                 initial=category.order,
-                help_text="An existing category at this number is moved further, with all above it.",
+                help_text="If a category already exists at this number, it and any after it will be shifted",
             )
 
     @staticmethod
