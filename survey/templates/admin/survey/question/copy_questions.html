@@ -7,6 +7,7 @@
     <li>{{ question.survey }} / {{ question.order }}: {{ question.text|truncatechars:80 }}</li>
   {% endfor %}
 </ul>
+<p>Conditions are not copied. Attach them to the copied questions afterwards.</p>
 
 <form method="post">
   {% csrf_token %}
