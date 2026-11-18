@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.test import override_settings
+from django.test import TestCase, override_settings
 from django.utils.translation import gettext_lazy as _
 
 from survey.models import Answer, Question, Response, Survey
@@ -40,11 +40,11 @@ class TestQuestion(BaseModelTest):
     def test_get_choices(self):
         """We can get a list of choices for a widget from choices text."""
         self.questions[0].choices = "A éa,B éb"
-        self.assertEqual(self.questions[0].get_choices(), (("a-éa", "A éa"), ("b-éb", "B éb")))
+        self.assertEqual(self.questions[0].get_choices(), (("A éa", "A éa"), ("B éb", "B éb")))
         self.questions[0].choices = "A()a,  ,C()c"
-        self.assertEqual(self.questions[0].get_choices(), (("aa", "A()a"), ("cc", "C()c")))
+        self.assertEqual(self.questions[0].get_choices(), (("A()a", "A()a"), ("C()c", "C()c")))
         self.questions[0].choices = "Женщина,Мужчина"
-        self.assertEqual(self.questions[0].get_choices(), (("женщина", "Женщина"), ("мужчина", "Мужчина")))
+        self.assertEqual(self.questions[0].get_choices(), (("Женщина", "Женщина"), ("Мужчина", "Мужчина")))
         self.questions[0].choices = "聖黎,はじむ"
         self.assertEqual(self.questions[0].get_choices(), (("聖黎", "聖黎"), ("はじむ", "はじむ")))
 
@@ -52,13 +52,13 @@ class TestQuestion(BaseModelTest):
     def test_get_choices_with_pipe(self):
         """We can get a list of choices for a widget from choices text with_pipe."""
         self.questions[0].choices = "A éa|B éb"
-        self.assertEqual(self.questions[0].get_choices(), (("a-éa", "A éa"), ("b-éb", "B éb")))
+        self.assertEqual(self.questions[0].get_choices(), (("A éa", "A éa"), ("B éb", "B éb")))
         self.questions[0].choices = "A()a|  |C()c"
-        self.assertEqual(self.questions[0].get_choices(), (("aa", "A()a"), ("cc", "C()c")))
+        self.assertEqual(self.questions[0].get_choices(), (("A()a", "A()a"), ("C()c", "C()c")))
         self.questions[0].choices = "Yes, I do| No, I don't"
-        self.assertEqual(self.questions[0].get_choices(), (("yes-i-do", "Yes, I do"), ("no-i-dont", "No, I don't")))
+        self.assertEqual(self.questions[0].get_choices(), (("Yes, I do", "Yes, I do"), ("No, I dont", "No, I don't")))
         self.questions[0].choices = "Женщина|Мужчина"
-        self.assertEqual(self.questions[0].get_choices(), (("женщина", "Женщина"), ("мужчина", "Мужчина")))
+        self.assertEqual(self.questions[0].get_choices(), (("Женщина", "Женщина"), ("Мужчина", "Мужчина")))
         self.questions[0].choices = "聖黎|はじむ"
         self.assertEqual(self.questions[0].get_choices(), (("聖黎", "聖黎"), ("はじむ", "はじむ")))
 
@@ -278,3 +278,37 @@ class TestQuestion(BaseModelTest):
             ),
             "user defined" + assert_message + other_question_assert_mesage,
         )
+
+
+class TestChoiceValue(TestCase):
+    """Option values are the choice text itself, minus apostrophes."""
+
+    SIGNED_CHOICES = (
+        "−5 = It would bother me very much,−4,−3,−2,−1,0 = Neither bother nor please me,"
+        "+1,+2,+3,+4,+5 = It would please me very much"
+    )
+
+    def test_choice_value_strips_surrounding_whitespace(self):
+        self.assertEqual(Question.choice_value("  Yes \t"), "Yes")
+
+    def test_choice_value_removes_apostrophes(self):
+        self.assertEqual(Question.choice_value("I don't 'know'"), "I dont know")
+
+    def test_choice_value_keeps_signs_letters_and_inner_spaces(self):
+        for choice in ("−4", "+4", "-4", "Äänestän ehkä", "Женщина", "聖黎", "A  b c"):
+            self.assertEqual(Question.choice_value(choice), choice)
+
+    def test_get_choices_keeps_signed_choices_distinct(self):
+        question = Question(text="Signed", type=Question.RADIO, choices=self.SIGNED_CHOICES)
+        choices = question.get_choices()
+        values = [value for value, _label in choices]
+        labels = [label for _value, label in choices]
+        self.assertEqual(len(choices), 11)
+        self.assertEqual(len(set(values)), 11)
+        self.assertEqual(values, labels)
+        self.assertIn("−4", values)
+        self.assertIn("+4", values)
+
+    def test_get_choices_drops_apostrophe_from_value_only(self):
+        question = Question(text="Apostrophe", type=Question.RADIO, choices="Yes,I don't know")
+        self.assertEqual(question.get_choices(), (("Yes", "Yes"), ("I dont know", "I don't know")))

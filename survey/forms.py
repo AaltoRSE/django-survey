@@ -6,7 +6,6 @@ from django import forms
 from django.conf import settings
 from django.forms import models
 from django.urls import reverse
-from django.utils.text import slugify
 
 from survey.conditions import evaluate
 from survey.impl import question_groups
@@ -362,7 +361,7 @@ class ResponseForm(models.ModelForm):
         if answer:
             # Initialize the field with values from the database if any
             if answer.body == self.WILL_NOT_ANSWER_SENTINEL:
-                # Kept as is: slugify() would strip its underscores.
+                # Kept as a plain string, also for select-multiple questions.
                 initial = answer.body
             elif question.type == Question.SELECT_MULTIPLE:
                 initial = []
@@ -373,10 +372,10 @@ class ResponseForm(models.ModelForm):
                     unformated_choices = answer.body[1:-1].strip()
                     for unformated_choice in unformated_choices.split(settings.CHOICES_SEPARATOR):
                         choice = unformated_choice.split("'")[1]
-                        initial.append(slugify(choice, allow_unicode=True))
+                        initial.append(choice)
                 else:
                     # Only one element
-                    initial.append(slugify(answer.body, allow_unicode=True))
+                    initial.append(answer.body)
             else:
                 initial = answer.body
             if question.pk in self._other_questions:
@@ -584,7 +583,7 @@ class ResponseForm(models.ModelForm):
             other_field.widget.attrs["data-other-for"] = f"question_{question.pk}"
             if question.type == Question.RADIO:
                 # other_option.js shows the text only while this option is selected.
-                other_field.widget.attrs["data-other-choice"] = slugify(OTHER_CHOICE, allow_unicode=True)
+                other_field.widget.attrs["data-other-choice"] = Question.choice_value(OTHER_CHOICE)
             other_field.widget.attrs["category"] = question.category.name if question.category else ""
             other_css_classes = question_css_classes("other", question.pk, suffix="other")
             other_field.label_class = other_css_classes["label_class"]
@@ -658,8 +657,8 @@ class ResponseForm(models.ModelForm):
                 "data-operator": condition.operator,
             }
             if condition.operator == QuestionCondition.OP_IN:
-                slugs = ",".join(slugify(label, allow_unicode=True) for label in condition._clean_choice_labels())
-                condition_attrs["data-cond-choices"] = slugs
+                values = ",".join(Question.choice_value(label) for label in condition._clean_choice_labels())
+                condition_attrs["data-cond-choices"] = values
             elif condition.number is not None:
                 condition_attrs["data-cond-number"] = condition.number
             field.widget.attrs.update(condition_attrs)

@@ -72,12 +72,12 @@ class OtherOptionTests(TestCase):
         self.assertEqual(answers.first().other_text, "Chartreuse")
 
     def test_choice_and_other_text_are_both_stored(self):
-        data = qd({f"question_{self.question.pk}": "red", f"question_{self.question.pk}_other": "Chartreuse"})
+        data = qd({f"question_{self.question.pk}": "Red", f"question_{self.question.pk}_other": "Chartreuse"})
         form = ResponseForm(data, survey=self.survey, user=AnonymousUser(), step=0)
         self.assertTrue(form.is_valid(), form.errors)
         response = form.save()
         answer = Answer.objects.get(response=response, question=self.question)
-        self.assertEqual(answer.body, "red")
+        self.assertEqual(answer.body, "Red")
         self.assertEqual(answer.other_text, "Chartreuse")
 
     def test_empty_answer_and_other_text_on_required_question_errors(self):
@@ -108,13 +108,13 @@ class OtherOptionTests(TestCase):
         self.assertNotContains(page, "survey-question-option-label")
 
     def test_regular_choice_still_stores_normally(self):
-        data = qd({f"question_{self.question.pk}": "red"})
+        data = qd({f"question_{self.question.pk}": "Red"})
         form = ResponseForm(data, survey=self.survey, user=AnonymousUser(), step=0)
         self.assertTrue(form.is_valid(), form.errors)
         response = form.save()
         answers = Answer.objects.filter(response=response, question=self.question)
         self.assertEqual(answers.count(), 1)
-        self.assertEqual(answers.first().body, "red")
+        self.assertEqual(answers.first().body, "Red")
 
     def test_reedit_moves_stale_value_to_other_field(self):
         user = User.objects.create_user(username="reeditor", password="testpass")
@@ -132,34 +132,34 @@ class OtherOptionTests(TestCase):
     def test_reedit_restores_stored_other_text(self):
         user = User.objects.create_user(username="reeditor4", password="testpass")
         response = Response.objects.create(survey=self.survey, user=user, interview_uuid=str(uuid.uuid4()))
-        answer = store_answer(self.question, response, "red")
+        answer = store_answer(self.question, response, "Red")
         answer.other_text = "Chartreuse"
         answer.save()
 
         form = ResponseForm(survey=self.survey, user=user, step=0)
-        self.assertEqual(form.fields[f"question_{self.question.pk}"].initial, "red")
+        self.assertEqual(form.fields[f"question_{self.question.pk}"].initial, "Red")
         self.assertEqual(form.fields[f"question_{self.question.pk}_other"].initial, "Chartreuse")
 
     def test_reedit_of_normal_choice_does_not_fill_other_field(self):
         user = User.objects.create_user(username="reeditor2", password="testpass")
         response = Response.objects.create(survey=self.survey, user=user, interview_uuid=str(uuid.uuid4()))
-        store_answer(self.question, response, "red")
+        store_answer(self.question, response, "Red")
 
         form = ResponseForm(survey=self.survey, user=user, step=0)
         field = form.fields[f"question_{self.question.pk}"]
-        self.assertEqual(field.initial, "red")
+        self.assertEqual(field.initial, "Red")
         self.assertFalse(form.fields[f"question_{self.question.pk}_other"].initial)
 
     def test_session_rebind_round_trips_other_text(self):
         # Mirrors SurveyDetail.treat_valid_form: the session stores the
         # cleaned answer and its "other" text as a plain dict, and the form
         # is rebuilt from it positionally.
-        data = {f"question_{self.question.pk}": "red", f"question_{self.question.pk}_other": "Chartreuse"}
+        data = {f"question_{self.question.pk}": "Red", f"question_{self.question.pk}_other": "Chartreuse"}
         form = ResponseForm(data, survey=self.survey, user=AnonymousUser(), step=0)
         self.assertTrue(form.is_valid(), form.errors)
         response = form.save()
         answer = Answer.objects.get(response=response, question=self.question)
-        self.assertEqual(answer.body, "red")
+        self.assertEqual(answer.body, "Red")
         self.assertEqual(answer.other_text, "Chartreuse")
 
 

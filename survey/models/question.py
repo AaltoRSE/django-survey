@@ -183,10 +183,27 @@ class Question(models.Model):
         if self.type == Question.RADIO and self.other_option:
             # The "other" text needs an option to go with it; add one unless
             # the choices already contain it.
-            other_slug = slugify(OTHER_CHOICE, allow_unicode=True)
-            if other_slug not in (slugify(choice, allow_unicode=True) for choice in choices_list):
+            other_value = Question.choice_value(OTHER_CHOICE)
+            if other_value not in (Question.choice_value(choice) for choice in choices_list):
                 choices_list.append(OTHER_CHOICE)
         return choices_list
+
+    @staticmethod
+    def choice_value(choice):
+        """Return the form option value of a choice.
+
+        The value is the stripped choice text with every apostrophe removed.
+        Select-multiple answers are stored as ``str(list)`` and read back by
+        splitting on ``'``, so an apostrophe inside a value would break them.
+        Everything else, including signs and non-ASCII letters, is kept.
+
+        Args:
+            choice (str): A choice label.
+
+        Returns:
+            str: The value submitted and stored for this choice.
+        """
+        return choice.strip().replace("'", "")
 
     @property
     def answers_as_text(self):
@@ -452,21 +469,13 @@ class Question(models.Model):
                 self._cardinality_plus_answer(cardinality, value, other_value)
 
     def get_choices(self):
+        """Return the choices formatted for the 'choices' argument of a form widget.
+
+        Returns:
+            tuple: ``(value, label)`` pairs, the value being
+            ``Question.choice_value(label)``.
         """
-        Parse the choices field and return a tuple formatted appropriately
-        for the 'choices' argument of a form widget.
-        """
-        choices_list = []
-        for choice in self.get_clean_choices():
-            if self.type == Question.INTEGER_SCALE:
-                # slugify() strips a leading '-', which would collapse '-5' and
-                # '5' into the same value. Integer scales keep the number as is.
-                value = choice
-            else:
-                value = slugify(choice, allow_unicode=True)
-            choices_list.append((value, choice))
-        choices_tuple = tuple(choices_list)
-        return choices_tuple
+        return tuple((Question.choice_value(choice), choice) for choice in self.get_clean_choices())
 
     def __str__(self):
         msg = f"Question '{self.text}' "

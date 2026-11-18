@@ -1,17 +1,18 @@
-from django.utils.text import slugify
+from survey.models import Question, QuestionCondition
 
 
-def _as_slug_list(raw_value):
-    """Normalize a raw parent answer value into a list of slugified choice values.
+def _as_value_list(raw_value):
+    """Normalize a raw parent answer value into a list of choice values.
 
     ``raw_value`` may already be a list (select-multiple submitted data), or a
     single string, or a stringified list stored in ``Answer.body`` such as
-    ``"[u'a', u'b']"`` (see ``Answer.values``).
+    ``"[u'a', u'b']"`` (see ``Answer.values``). Each value goes through
+    ``Question.choice_value`` so it compares equal to the condition's labels.
     """
     if raw_value is None:
         return []
     if isinstance(raw_value, (list, tuple)):
-        return [slugify(v) for v in raw_value if v not in (None, "")]
+        return [Question.choice_value(v) for v in raw_value if v not in (None, "")]
     raw_value = str(raw_value)
     if len(raw_value) >= 3 and raw_value[0:3] == "[u'":
         values = []
@@ -23,8 +24,8 @@ def _as_slug_list(raw_value):
             if i + 1 == nb_values:
                 value = value[:-2]
             values.append(value)
-        return [slugify(v) for v in values if v not in (None, "")]
-    return [slugify(raw_value)] if raw_value != "" else []
+        return [Question.choice_value(v) for v in values if v not in (None, "")]
+    return [Question.choice_value(raw_value)] if raw_value != "" else []
 
 
 def evaluate(condition, raw_value):
@@ -33,14 +34,12 @@ def evaluate(condition, raw_value):
     A missing/empty parent answer always evaluates to False (the child stays
     hidden until the parent is answered).
     """
-    from survey.models import QuestionCondition
-
     if condition.operator == QuestionCondition.OP_IN:
-        value_slugs = set(_as_slug_list(raw_value))
-        if not value_slugs:
+        values = set(_as_value_list(raw_value))
+        if not values:
             return False
-        condition_slugs = {slugify(label) for label in condition._clean_choice_labels()}
-        return bool(value_slugs & condition_slugs)
+        condition_values = {Question.choice_value(label) for label in condition._clean_choice_labels()}
+        return bool(values & condition_values)
 
     if raw_value in (None, ""):
         return False

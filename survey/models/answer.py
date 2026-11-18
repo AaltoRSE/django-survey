@@ -87,8 +87,9 @@ class Answer(models.Model):
                         answers.append(part)
             else:
                 answers = [body]
+        choice_values = [Question.choice_value(choice) for choice in choices]
         for answer in answers:
-            if answer not in choices:
+            if answer not in choice_values:
                 msg = f"Impossible answer '{body}'"
                 msg += f" should be in {choices} "
                 raise ValidationError(msg)

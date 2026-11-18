@@ -32,13 +32,13 @@ class ConditionalVisibilityTests(TestCase):
         make_condition(self.q2, self.q1, QuestionCondition.OP_IN, choices="Yes")
 
     def test_hidden_child_produces_no_required_error(self):
-        data = qd({f"question_{self.q1.pk}": "no"})
+        data = qd({f"question_{self.q1.pk}": "No"})
         form = ResponseForm(data, survey=self.survey, user=AnonymousUser(), step=0)
         self.assertTrue(form.is_valid(), form.errors)
         self.assertNotIn(f"question_{self.q2.pk}", form.errors)
 
     def test_hidden_child_produces_no_answer_row(self):
-        data = qd({f"question_{self.q1.pk}": "no"})
+        data = qd({f"question_{self.q1.pk}": "No"})
         form = ResponseForm(data, survey=self.survey, user=AnonymousUser(), step=0)
         self.assertTrue(form.is_valid(), form.errors)
         response = form.save()
@@ -49,16 +49,16 @@ class ConditionalVisibilityTests(TestCase):
         widget_attrs = form.fields[f"question_{self.q2.pk}"].widget.attrs
         self.assertEqual(widget_attrs["data-depends-on"], f"question_{self.q1.pk}")
         self.assertEqual(widget_attrs["data-operator"], QuestionCondition.OP_IN)
-        self.assertEqual(widget_attrs["data-cond-choices"], "yes")
+        self.assertEqual(widget_attrs["data-cond-choices"], "Yes")
 
     def test_visible_required_conditional_left_blank_errors(self):
-        data = qd({f"question_{self.q1.pk}": "yes", f"question_{self.q2.pk}": ""})
+        data = qd({f"question_{self.q1.pk}": "Yes", f"question_{self.q2.pk}": ""})
         form = ResponseForm(data, survey=self.survey, user=AnonymousUser(), step=0)
         self.assertFalse(form.is_valid())
         self.assertIn(f"question_{self.q2.pk}", form.errors)
 
     def test_visible_answered_conditional_is_valid(self):
-        data = qd({f"question_{self.q1.pk}": "yes", f"question_{self.q2.pk}": "hello"})
+        data = qd({f"question_{self.q1.pk}": "Yes", f"question_{self.q2.pk}": "hello"})
         form = ResponseForm(data, survey=self.survey, user=AnonymousUser(), step=0)
         self.assertTrue(form.is_valid(), form.errors)
 
@@ -73,13 +73,13 @@ class CascadeVisibilityTests(TestCase):
         make_condition(self.q3, self.q2, QuestionCondition.OP_IN, choices="A")
 
     def test_grandchild_hidden_when_own_parent_hidden_even_if_its_own_condition_would_hold(self):
-        # q1 = "no" hides q2. Craft data so that, taken in isolation, q3's own
-        # condition on q2 == "a" would evaluate True -- it must still be hidden
+        # q1 = "No" hides q2. Craft data so that, taken in isolation, q3's own
+        # condition on q2 == "A" would evaluate True -- it must still be hidden
         # because its parent (q2) is hidden.
         data = qd(
             {
-                f"question_{self.q1.pk}": "no",
-                f"question_{self.q2.pk}": "a",
+                f"question_{self.q1.pk}": "No",
+                f"question_{self.q2.pk}": "A",
                 f"question_{self.q3.pk}": "some text",
             }
         )
@@ -90,8 +90,8 @@ class CascadeVisibilityTests(TestCase):
     def test_grandchild_visible_when_whole_chain_matches(self):
         data = qd(
             {
-                f"question_{self.q1.pk}": "yes",
-                f"question_{self.q2.pk}": "a",
+                f"question_{self.q1.pk}": "Yes",
+                f"question_{self.q2.pk}": "A",
                 f"question_{self.q3.pk}": "some text",
             }
         )
@@ -121,21 +121,21 @@ class NumericConditionTests(TestCase):
 class EvaluateOperatorTests(TestCase):
     """Direct unit tests of conditions.evaluate() for every operator."""
 
-    def test_in_operator_matches_slug(self):
+    def test_in_operator_matches_value(self):
         condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="Yes")
-        self.assertTrue(evaluate(condition, "yes"))
+        self.assertTrue(evaluate(condition, "Yes"))
 
     def test_in_operator_no_match(self):
         condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="Yes")
-        self.assertFalse(evaluate(condition, "no"))
+        self.assertFalse(evaluate(condition, "No"))
 
-    def test_in_operator_matches_label_needing_slugify(self):
+    def test_in_operator_matches_label_with_apostrophe(self):
         condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="I don't know")
-        self.assertTrue(evaluate(condition, "i-dont-know"))
+        self.assertTrue(evaluate(condition, "I dont know"))
 
     def test_in_operator_select_multiple_list_intersection_true(self):
         condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="A,B")
-        self.assertTrue(evaluate(condition, ["c", "b"]))
+        self.assertTrue(evaluate(condition, ["c", "B"]))
 
     def test_in_operator_select_multiple_list_intersection_false(self):
         condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="A,B")
@@ -143,7 +143,7 @@ class EvaluateOperatorTests(TestCase):
 
     def test_in_operator_select_multiple_stored_body_string(self):
         condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="A,B")
-        self.assertTrue(evaluate(condition, "[u'a', u'c']"))
+        self.assertTrue(evaluate(condition, "[u'A', u'c']"))
 
     def test_in_operator_select_multiple_stored_body_string_no_match(self):
         condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="A,B")
@@ -317,21 +317,21 @@ class ByQuestionStepSkippingTests(TestCase):
         self.session_key = f"survey_{self.survey.id}"
 
     def test_get_on_hidden_child_step_redirects_past_it(self):
-        set_session(self.client, self.session_key, {f"question_{self.q0.pk}": "no"})
+        set_session(self.client, self.session_key, {f"question_{self.q0.pk}": "No"})
         url = reverse("survey-detail-step", kwargs={"id": self.survey.id, "step": 1})
         response = self.client.get(url)
         expected = reverse("survey-detail-step", kwargs={"id": self.survey.id, "step": 2})
         self.assertRedirects(response, expected, fetch_redirect_response=False)
 
     def test_get_on_visible_child_step_renders_normally(self):
-        set_session(self.client, self.session_key, {f"question_{self.q0.pk}": "yes"})
+        set_session(self.client, self.session_key, {f"question_{self.q0.pk}": "Yes"})
         url = reverse("survey-detail-step", kwargs={"id": self.survey.id, "step": 1})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 
     def test_post_answering_parent_skips_hidden_child_step(self):
         url = reverse("survey-detail-step", kwargs={"id": self.survey.id, "step": 0})
-        response = self.client.post(url, {f"question_{self.q0.pk}": "no"})
+        response = self.client.post(url, {f"question_{self.q0.pk}": "No"})
         expected = reverse("survey-detail-step", kwargs={"id": self.survey.id, "step": 2})
         self.assertRedirects(response, expected, fetch_redirect_response=False)
 
@@ -348,7 +348,7 @@ class AllTrailingStepsHiddenFinalizesTests(TestCase):
 
     def test_submission_finalizes_when_all_trailing_steps_hidden(self):
         url = reverse("survey-detail-step", kwargs={"id": self.survey.id, "step": 0})
-        response = self.client.post(url, {f"question_{self.q0.pk}": "no"})
+        response = self.client.post(url, {f"question_{self.q0.pk}": "No"})
 
         self.assertEqual(Response.objects.count(), 1)
         saved = Response.objects.get()
@@ -390,7 +390,7 @@ class ByCategorySkippedCategoryTests(TestCase):
         self.session_key = f"survey_{self.survey.id}"
 
     def test_get_on_fully_hidden_category_step_redirects_past_it(self):
-        set_session(self.client, self.session_key, {f"question_{self.q_a.pk}": "no"})
+        set_session(self.client, self.session_key, {f"question_{self.q_a.pk}": "No"})
         url = reverse("survey-detail-step", kwargs={"id": self.survey.id, "step": 1})
         response = self.client.get(url)
         expected = reverse("survey-detail-step", kwargs={"id": self.survey.id, "step": 2})
@@ -398,7 +398,7 @@ class ByCategorySkippedCategoryTests(TestCase):
 
     def test_post_answering_parent_skips_fully_hidden_category(self):
         url = reverse("survey-detail-step", kwargs={"id": self.survey.id, "step": 0})
-        response = self.client.post(url, {f"question_{self.q_a.pk}": "no"})
+        response = self.client.post(url, {f"question_{self.q_a.pk}": "No"})
         expected = reverse("survey-detail-step", kwargs={"id": self.survey.id, "step": 2})
         self.assertRedirects(response, expected, fetch_redirect_response=False)
 
@@ -420,25 +420,25 @@ class StepBackPurgesStaleAnswerTests(TestCase):
         step0_url = reverse("survey-detail-step", kwargs={"id": self.survey.id, "step": 0})
         step1_url = reverse("survey-detail-step", kwargs={"id": self.survey.id, "step": 1})
 
-        # Answer parent "yes" -> child becomes visible.
-        response = self.client.post(step0_url, {f"question_{self.q_p.pk}": "yes"})
+        # Answer parent "Yes" -> child becomes visible.
+        response = self.client.post(step0_url, {f"question_{self.q_p.pk}": "Yes"})
         self.assertRedirects(response, step1_url, fetch_redirect_response=False)
 
         # Answer the (now visible) child; this is the last step, so it finalizes.
         response = self.client.post(step1_url, {f"question_{self.q_c.pk}": "hello"})
         self.assertEqual(Response.objects.count(), 1)
         saved = Response.objects.get()
-        self.assertEqual(Answer.objects.get(response=saved, question=self.q_p).body, "yes")
+        self.assertEqual(Answer.objects.get(response=saved, question=self.q_p).body, "Yes")
         self.assertEqual(Answer.objects.get(response=saved, question=self.q_c).body, "hello")
         self.assertNotIn(self.session_key, self.client.session)
 
         # Go back to step 0 and change the parent answer so the child becomes hidden.
-        response = self.client.post(step0_url, {f"question_{self.q_p.pk}": "no"})
+        response = self.client.post(step0_url, {f"question_{self.q_p.pk}": "No"})
 
         # The whole survey is now finalized again (no visible trailing step).
         self.assertEqual(Response.objects.count(), 1)
         saved.refresh_from_db()
-        self.assertEqual(Answer.objects.get(response=saved, question=self.q_p).body, "no")
+        self.assertEqual(Answer.objects.get(response=saved, question=self.q_p).body, "No")
         self.assertFalse(Answer.objects.filter(response=saved, question=self.q_c).exists())
         self.assertNotIn(self.session_key, self.client.session)
         self.assertRedirects(
@@ -446,3 +446,38 @@ class StepBackPurgesStaleAnswerTests(TestCase):
             reverse("survey-confirmation", kwargs={"uuid": saved.interview_uuid}),
             fetch_redirect_response=False,
         )
+
+
+class UnslugifiedConditionTests(TestCase):
+    """Conditions compare raw choice values, so signs and non-ASCII letters count."""
+
+    def test_in_operator_tells_minus_from_plus(self):
+        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="−4")
+        self.assertTrue(evaluate(condition, "−4"))
+        self.assertFalse(evaluate(condition, "+4"))
+        self.assertFalse(evaluate(condition, "4"))
+
+    def test_in_operator_matches_non_ascii_choice(self):
+        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="Ehkä")
+        self.assertTrue(evaluate(condition, "Ehkä"))
+        self.assertFalse(evaluate(condition, "Ehka"))
+
+    def test_data_cond_choices_holds_unslugified_values(self):
+        survey = make_survey()
+        parent = make_question(survey, Question.RADIO, order=1, choices="−4,+4,Ehkä,I don't know", text="Parent")
+        child = make_question(survey, Question.TEXT, order=2, text="Child")
+        make_condition(child, parent, QuestionCondition.OP_IN, choices="−4,Ehkä,I don't know")
+        form = ResponseForm(survey=survey, user=AnonymousUser(), step=0)
+        widget_attrs = form.fields[f"question_{child.pk}"].widget.attrs
+        self.assertEqual(widget_attrs["data-cond-choices"], "−4,Ehkä,I dont know")
+
+    def test_form_shows_child_only_for_matching_sign(self):
+        survey = make_survey()
+        parent = make_question(survey, Question.RADIO, order=1, choices="−4,+4", text="Parent")
+        child = make_question(survey, Question.TEXT, order=2, text="Child")
+        make_condition(child, parent, QuestionCondition.OP_IN, choices="−4")
+        hidden = ResponseForm(qd({f"question_{parent.pk}": "+4"}), survey=survey, user=AnonymousUser(), step=0)
+        self.assertTrue(hidden.is_valid(), hidden.errors)
+        shown = ResponseForm(qd({f"question_{parent.pk}": "−4"}), survey=survey, user=AnonymousUser(), step=0)
+        self.assertFalse(shown.is_valid())
+        self.assertIn(f"question_{child.pk}", shown.errors)

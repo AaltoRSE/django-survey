@@ -109,8 +109,8 @@ class FieldWidgetMappingTests(TestCase):
         field = self.form.fields[f"question_{self.likert.pk}"]
         choices = list(field.choices)
         self.assertEqual(len(choices), 5)
-        slugs = [value for value, _ in choices]
-        self.assertEqual(slugs, ["strongly-disagree", "disagree", "neutral", "agree", "strongly-agree"])
+        values = [value for value, _ in choices]
+        self.assertEqual(values, ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"])
         labels = [label for _, label in choices]
         self.assertEqual(labels, ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"])
 
@@ -134,7 +134,7 @@ class PostRoundTripTests(TestCase):
             {
                 f"question_{self.time_q.pk}": "14:30",
                 f"question_{self.datetime_q.pk}": "2026-08-10T14:30",
-                f"question_{self.likert.pk}": "agree",
+                f"question_{self.likert.pk}": "Agree",
             }
         )
 
@@ -153,11 +153,11 @@ class PostRoundTripTests(TestCase):
             "2026-08-10T14:30:00+00:00",
         )
 
-    def test_likert_answer_stored_as_slug(self):
+    def test_likert_answer_stored_as_label(self):
         form = ResponseForm(self._valid_data(), survey=self.survey, user=AnonymousUser(), step=0)
         self.assertTrue(form.is_valid(), form.errors)
         response = form.save()
-        self.assertEqual(Answer.objects.get(response=response, question=self.likert).body, "agree")
+        self.assertEqual(Answer.objects.get(response=response, question=self.likert).body, "Agree")
 
     def test_time_and_datetime_cleaned_data_are_json_serializable_strings(self):
         form = ResponseForm(self._valid_data(), survey=self.survey, user=AnonymousUser(), step=0)
@@ -422,3 +422,47 @@ class IntegerScaleTemplateTests(TestCase):
         html = self._render()
         for value in range(-5, 6):
             self.assertIn(f'value="{value}"', html)
+
+
+class ChoiceValueRoundTripTests(TestCase):
+    """Choice values survive a save and a reload unchanged."""
+
+    SIGNED_CHOICES = (
+        "−5 = It would bother me very much,−4,−3,−2,−1,0 = Neither bother nor please me,"
+        "+1,+2,+3,+4,+5 = It would please me very much"
+    )
+
+    def setUp(self):
+        self.survey = make_survey(need_logged_user=True, editable_answers=True)
+        self.minus = make_question(self.survey, Question.RADIO, order=1, choices=self.SIGNED_CHOICES, text="Minus")
+        self.plus = make_question(self.survey, Question.RADIO, order=2, choices=self.SIGNED_CHOICES, text="Plus")
+        self.multi = make_question(
+            self.survey, Question.SELECT_MULTIPLE, order=3, choices="Yes,I don't know,No", text="Multi"
+        )
+        self.user = User.objects.create_user(username="roundtrip", password="testpass")
+
+    def _save(self):
+        data = qd({f"question_{self.minus.pk}": "−4", f"question_{self.plus.pk}": "+4"})
+        data.setlist(f"question_{self.multi.pk}", ["Yes", "I dont know"])
+        form = ResponseForm(data, survey=self.survey, user=self.user, step=0)
+        self.assertTrue(form.is_valid(), form.errors)
+        return form.save()
+
+    def test_signed_choices_are_stored_distinct(self):
+        response = self._save()
+        self.assertEqual(Answer.objects.get(response=response, question=self.minus).body, "−4")
+        self.assertEqual(Answer.objects.get(response=response, question=self.plus).body, "+4")
+
+    def test_signed_choices_are_reloaded_distinct(self):
+        self._save()
+        form = ResponseForm(survey=self.survey, user=self.user, step=0)
+        self.assertEqual(form.fields[f"question_{self.minus.pk}"].initial, "−4")
+        self.assertEqual(form.fields[f"question_{self.plus.pk}"].initial, "+4")
+
+    def test_select_multiple_with_apostrophe_choice_round_trips(self):
+        response = self._save()
+        body = Answer.objects.get(response=response, question=self.multi).body
+        # The stored body passes the answer's own choice validation.
+        Answer(question=self.multi, response=response, body=body)
+        form = ResponseForm(survey=self.survey, user=self.user, step=0)
+        self.assertEqual(form.fields[f"question_{self.multi.pk}"].initial, ["Yes", "I dont know"])
