@@ -1,4 +1,5 @@
 import datetime
+import json
 import logging
 import uuid
 
@@ -364,18 +365,7 @@ class ResponseForm(models.ModelForm):
                 # Kept as a plain string, also for select-multiple questions.
                 initial = answer.body
             elif question.type == Question.SELECT_MULTIPLE:
-                initial = []
-                if answer.body == "[]":
-                    pass
-                elif "[" in answer.body and "]" in answer.body:
-                    initial = []
-                    unformated_choices = answer.body[1:-1].strip()
-                    for unformated_choice in unformated_choices.split(settings.CHOICES_SEPARATOR):
-                        choice = unformated_choice.split("'")[1]
-                        initial.append(choice)
-                else:
-                    # Only one element
-                    initial.append(answer.body)
+                initial = Answer.parse_body(answer.body)
             else:
                 initial = answer.body
             if question.pk in self._other_questions:
@@ -657,8 +647,8 @@ class ResponseForm(models.ModelForm):
                 "data-operator": condition.operator,
             }
             if condition.operator == QuestionCondition.OP_IN:
-                values = ",".join(Question.choice_value(label) for label in condition._clean_choice_labels())
-                condition_attrs["data-cond-choices"] = values
+                values = [Question.choice_value(label) for label in condition._clean_choice_labels()]
+                condition_attrs["data-cond-choices"] = json.dumps(values, ensure_ascii=False)
             elif condition.number is not None:
                 condition_attrs["data-cond-number"] = condition.number
             field.widget.attrs.update(condition_attrs)

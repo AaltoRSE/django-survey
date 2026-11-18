@@ -47,7 +47,8 @@
         }
         var operator = input.getAttribute("data-operator");
         if (operator === "in") {
-            var choices = (input.getAttribute("data-cond-choices") || "").split(",").filter(Boolean);
+            var rawChoices = input.getAttribute("data-cond-choices");
+            var choices = rawChoices ? JSON.parse(rawChoices) : [];
             for (var i = 0; i < values.length; i++) {
                 if (choices.indexOf(values[i]) !== -1) {
                     return true;

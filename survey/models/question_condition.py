@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -64,7 +65,12 @@ class QuestionCondition(models.Model):
                 raise ValidationError("A number is required for numeric operators.")
 
     def _clean_choice_labels(self):
-        return [label.strip() for label in self.choices.split(",") if label.strip()]
+        """Split the stored parent choice labels on the configured separator.
+
+        Returns:
+            list[str]: The stripped, non-empty labels.
+        """
+        return [label.strip() for label in self.choices.split(settings.CHOICES_SEPARATOR) if label.strip()]
 
     def __str__(self):
         return f"Condition on '{self.question}' depending on '{self.depends_on}'"

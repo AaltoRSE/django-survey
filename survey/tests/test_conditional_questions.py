@@ -1,8 +1,11 @@
+import json
+
 from django.contrib.auth.models import AnonymousUser, User
 from django.core.exceptions import ValidationError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from survey.admin import QuestionInlineForm
 from survey.conditions import evaluate
 from survey.forms import ResponseForm
 from survey.models import Answer, Category, Question, QuestionCondition, Response, Survey
@@ -49,7 +52,7 @@ class ConditionalVisibilityTests(TestCase):
         widget_attrs = form.fields[f"question_{self.q2.pk}"].widget.attrs
         self.assertEqual(widget_attrs["data-depends-on"], f"question_{self.q1.pk}")
         self.assertEqual(widget_attrs["data-operator"], QuestionCondition.OP_IN)
-        self.assertEqual(widget_attrs["data-cond-choices"], "Yes")
+        self.assertEqual(json.loads(widget_attrs["data-cond-choices"]), ["Yes"])
 
     def test_visible_required_conditional_left_blank_errors(self):
         data = qd({f"question_{self.q1.pk}": "Yes", f"question_{self.q2.pk}": ""})
@@ -148,6 +151,10 @@ class EvaluateOperatorTests(TestCase):
     def test_in_operator_select_multiple_stored_body_string_no_match(self):
         condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="A,B")
         self.assertFalse(evaluate(condition, "[u'c', u'd']"))
+
+    def test_in_operator_select_multiple_python3_stored_body_string(self):
+        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="A,B")
+        self.assertTrue(evaluate(condition, str(["a", "B"])))
 
     def test_in_operator_missing_parent_value_is_false(self):
         condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="Yes")
@@ -469,7 +476,7 @@ class UnslugifiedConditionTests(TestCase):
         make_condition(child, parent, QuestionCondition.OP_IN, choices="−4,Ehkä,I don't know")
         form = ResponseForm(survey=survey, user=AnonymousUser(), step=0)
         widget_attrs = form.fields[f"question_{child.pk}"].widget.attrs
-        self.assertEqual(widget_attrs["data-cond-choices"], "−4,Ehkä,I dont know")
+        self.assertEqual(json.loads(widget_attrs["data-cond-choices"]), ["−4", "Ehkä", "I dont know"])
 
     def test_form_shows_child_only_for_matching_sign(self):
         survey = make_survey()
@@ -481,3 +488,48 @@ class UnslugifiedConditionTests(TestCase):
         shown = ResponseForm(qd({f"question_{parent.pk}": "−4"}), survey=survey, user=AnonymousUser(), step=0)
         self.assertFalse(shown.is_valid())
         self.assertIn(f"question_{child.pk}", shown.errors)
+
+
+@override_settings(CHOICES_SEPARATOR="|")
+class CustomChoicesSeparatorTests(TestCase):
+    """Conditions split parent choices on settings.CHOICES_SEPARATOR, so a
+    choice containing "," works when the separator is something else."""
+
+    def setUp(self):
+        self.survey = make_survey()
+        self.parent = make_question(
+            self.survey, Question.RADIO, order=1, choices="Yes, sometimes|No", text="Parent"
+        )
+        self.child = make_question(self.survey, Question.TEXT, order=2, text="Child")
+
+    def test_clean_choice_labels_splits_on_configured_separator(self):
+        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="Yes, sometimes| No")
+        self.assertEqual(condition._clean_choice_labels(), ["Yes, sometimes", "No"])
+
+    def test_evaluate_in_matches_choice_containing_comma(self):
+        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="Yes, sometimes")
+        self.assertTrue(evaluate(condition, "Yes, sometimes"))
+        self.assertFalse(evaluate(condition, "Yes"))
+        self.assertFalse(evaluate(condition, "No"))
+
+    def test_data_cond_choices_is_json_list_with_comma_choice_whole(self):
+        make_condition(self.child, self.parent, QuestionCondition.OP_IN, choices="Yes, sometimes|No")
+        form = ResponseForm(survey=self.survey, user=AnonymousUser(), step=0)
+        widget_attrs = form.fields[f"question_{self.child.pk}"].widget.attrs
+        self.assertEqual(json.loads(widget_attrs["data-cond-choices"]), ["Yes, sometimes", "No"])
+
+    def test_admin_condition_form_saves_choice_containing_comma(self):
+        form = QuestionInlineForm()
+        form.cleaned_data = {
+            "condition_operator": QuestionCondition.OP_IN,
+            "condition_value": "Yes, sometimes",
+            "order": self.child.order,
+        }
+        form._errors = {}
+        kwargs = form._clean_condition(self.parent)
+        self.assertEqual(form._errors, {})
+        condition = QuestionCondition.objects.create(question=self.child, **kwargs)
+        condition.full_clean()
+        self.assertEqual(condition._clean_choice_labels(), ["Yes, sometimes"])
+        reloaded = QuestionInlineForm(instance=self.child)
+        self.assertEqual(reloaded.fields["condition_value"].initial, "Yes, sometimes")

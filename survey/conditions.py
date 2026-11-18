@@ -1,4 +1,4 @@
-from survey.models import Question, QuestionCondition
+from survey.models import Answer, Question, QuestionCondition
 
 
 def _as_value_list(raw_value):
@@ -6,26 +6,14 @@ def _as_value_list(raw_value):
 
     ``raw_value`` may already be a list (select-multiple submitted data), or a
     single string, or a stringified list stored in ``Answer.body`` such as
-    ``"[u'a', u'b']"`` (see ``Answer.values``). Each value goes through
+    ``"['a', 'b']"`` (parsed with ``Answer.parse_body``). Each value goes through
     ``Question.choice_value`` so it compares equal to the condition's labels.
     """
     if raw_value is None:
         return []
     if isinstance(raw_value, (list, tuple)):
         return [Question.choice_value(v) for v in raw_value if v not in (None, "")]
-    raw_value = str(raw_value)
-    if len(raw_value) >= 3 and raw_value[0:3] == "[u'":
-        values = []
-        raw_values = raw_value.split("', u'")
-        nb_values = len(raw_values)
-        for i, value in enumerate(raw_values):
-            if i == 0:
-                value = value[3:]
-            if i + 1 == nb_values:
-                value = value[:-2]
-            values.append(value)
-        return [Question.choice_value(v) for v in values if v not in (None, "")]
-    return [Question.choice_value(raw_value)] if raw_value != "" else []
+    return [Question.choice_value(v) for v in Answer.parse_body(str(raw_value))]
 
 
 def evaluate(condition, raw_value):

@@ -1,6 +1,7 @@
 import re
 
 from django import forms
+from django.conf import settings
 from django.contrib import admin
 from django_ace import AceWidget
 
@@ -195,13 +196,13 @@ class QuestionInlineForm(ScalePresetForm):
             if depends_on.type not in (Question.RADIO, Question.SELECT, Question.SELECT_MULTIPLE):
                 self.add_error("condition_question", "'is one of choices' needs a choice-type parent question.")
                 return None
-            labels = [label.strip() for label in value.split(",") if label.strip()]
+            labels = [label.strip() for label in value.split(settings.CHOICES_SEPARATOR) if label.strip()]
             parent_choices = depends_on.get_clean_choices()
             for label in labels:
                 if label not in parent_choices:
                     self.add_error("condition_value", f'"{label}" is not a choice of the parent question.')
                     return None
-            kwargs["choices"] = ", ".join(labels)
+            kwargs["choices"] = f"{settings.CHOICES_SEPARATOR} ".join(labels)
         else:
             if depends_on.type not in (Question.INTEGER, Question.FLOAT):
                 self.add_error("condition_question", "Numeric operators need an integer or float parent question.")

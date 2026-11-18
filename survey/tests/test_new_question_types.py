@@ -6,7 +6,7 @@ from django.contrib.auth.models import AnonymousUser, User
 from django.core.exceptions import ValidationError
 from django.http import QueryDict
 from django.template.loader import render_to_string
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from survey.forms import ResponseForm
 from survey.models import Answer, Question, Response, Survey
@@ -194,6 +194,36 @@ class RedisplayTests(TestCase):
     def test_datetime_field_redisplays_legacy_stored_value(self):
         form = ResponseForm(survey=self.survey, user=self.user, step=0)
         self.assertIn('value="2026-08-10T14:30"', str(form))
+
+
+@override_settings(CHOICES_SEPARATOR="|")
+class SelectMultipleRedisplayCustomSeparatorTests(TestCase):
+    """A stored select-multiple body is str(list), joined with ", " whatever
+    the choices separator is, so it must reload under another separator."""
+
+    def test_stored_select_multiple_answer_reloads(self):
+        survey = make_survey(need_logged_user=True, editable_answers=True)
+        question = make_question(survey, Question.SELECT_MULTIPLE, order=1, choices="a|b|c", text="Pick")
+        user = User.objects.create_user(username="separator", password="testpass")
+        response = Response.objects.create(survey=survey, user=user, interview_uuid=str(uuid.uuid4()))
+        store_answer(question, response, "['a', 'c']")
+        form = ResponseForm(survey=survey, user=user, step=0)
+        self.assertEqual(form.fields[f"question_{question.pk}"].initial, ["a", "c"])
+
+    def test_saved_choices_containing_commas_reload_ticked(self):
+        """Choice values with ", " inside survive a save and reload."""
+        survey = make_survey(need_logged_user=True, editable_answers=True)
+        question = make_question(
+            survey, Question.SELECT_MULTIPLE, order=1, choices="Yes, sometimes|No, never|Rarely", text="Pick"
+        )
+        user = User.objects.create_user(username="commas", password="testpass")
+        data = QueryDict(mutable=True)
+        data.setlist(f"question_{question.pk}", ["Yes, sometimes", "Rarely"])
+        form = ResponseForm(data, survey=survey, user=user, step=0)
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        reloaded = ResponseForm(survey=survey, user=user, step=0)
+        self.assertEqual(reloaded.fields[f"question_{question.pk}"].initial, ["Yes, sometimes", "Rarely"])
 
 
 class InvalidDatetimePostTests(TestCase):

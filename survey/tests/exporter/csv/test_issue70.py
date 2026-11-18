@@ -26,7 +26,7 @@ class TestIssue70(TestCase):
             "hours were on filing,New Hires,Charitable Donations,Events held What? Where? Products gotten?"
         )
         content = (
-            "adminebd,user@example.com,Ed Davison,2020-02-03,Left blank,0,0,8,['Admin'; 'Calls'; 'Events'],0,"
+            "adminebd,user@example.com,Ed Davison,2020-02-03,Left blank,0,0,8,Admin|Calls|Events,0,"
             "Left blank,100,"
         )
         self.expected_content = f"{header}\n{content}"
