@@ -192,10 +192,7 @@ class Question(models.Model):
     def choice_value(choice):
         """Return the form option value of a choice.
 
-        The value is the stripped choice text with every apostrophe removed.
-        Select-multiple answers are stored as ``str(list)`` and read back by
-        splitting on ``'``, so an apostrophe inside a value would break them.
-        Everything else, including signs and non-ASCII letters, is kept.
+        The value is the stripped choice text.
 
         Args:
             choice (str): A choice label.
@@ -203,7 +200,7 @@ class Question(models.Model):
         Returns:
             str: The value submitted and stored for this choice.
         """
-        return choice.strip().replace("'", "")
+        return choice.strip()
 
     @property
     def answers_as_text(self):

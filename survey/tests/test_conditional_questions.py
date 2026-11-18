@@ -125,47 +125,69 @@ class EvaluateOperatorTests(TestCase):
     """Direct unit tests of conditions.evaluate() for every operator."""
 
     def test_in_operator_matches_value(self):
-        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="Yes")
+        condition = QuestionCondition(
+            depends_on=Question(type=Question.RADIO), operator=QuestionCondition.OP_IN, choices="Yes"
+        )
         self.assertTrue(evaluate(condition, "Yes"))
 
     def test_in_operator_no_match(self):
-        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="Yes")
+        condition = QuestionCondition(
+            depends_on=Question(type=Question.RADIO), operator=QuestionCondition.OP_IN, choices="Yes"
+        )
         self.assertFalse(evaluate(condition, "No"))
 
     def test_in_operator_matches_label_with_apostrophe(self):
-        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="I don't know")
-        self.assertTrue(evaluate(condition, "I dont know"))
+        condition = QuestionCondition(
+            depends_on=Question(type=Question.RADIO), operator=QuestionCondition.OP_IN, choices="I don't know"
+        )
+        self.assertTrue(evaluate(condition, "I don't know"))
 
     def test_in_operator_select_multiple_list_intersection_true(self):
-        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="A,B")
+        condition = QuestionCondition(
+            depends_on=Question(type=Question.SELECT_MULTIPLE), operator=QuestionCondition.OP_IN, choices="A,B"
+        )
         self.assertTrue(evaluate(condition, ["c", "B"]))
 
     def test_in_operator_select_multiple_list_intersection_false(self):
-        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="A,B")
+        condition = QuestionCondition(
+            depends_on=Question(type=Question.SELECT_MULTIPLE), operator=QuestionCondition.OP_IN, choices="A,B"
+        )
         self.assertFalse(evaluate(condition, ["c", "d"]))
 
     def test_in_operator_select_multiple_stored_body_string(self):
-        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="A,B")
-        self.assertTrue(evaluate(condition, "[u'A', u'c']"))
+        condition = QuestionCondition(
+            depends_on=Question(type=Question.SELECT_MULTIPLE), operator=QuestionCondition.OP_IN, choices="A,B"
+        )
+        self.assertTrue(evaluate(condition, '["A", "c"]'))
 
     def test_in_operator_select_multiple_stored_body_string_no_match(self):
-        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="A,B")
-        self.assertFalse(evaluate(condition, "[u'c', u'd']"))
+        condition = QuestionCondition(
+            depends_on=Question(type=Question.SELECT_MULTIPLE), operator=QuestionCondition.OP_IN, choices="A,B"
+        )
+        self.assertFalse(evaluate(condition, '["c", "d"]'))
 
-    def test_in_operator_select_multiple_python3_stored_body_string(self):
-        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="A,B")
-        self.assertTrue(evaluate(condition, str(["a", "B"])))
+    def test_in_operator_select_multiple_encoded_body_string(self):
+        condition = QuestionCondition(
+            depends_on=Question(type=Question.SELECT_MULTIPLE), operator=QuestionCondition.OP_IN, choices="A,B"
+        )
+        self.assertTrue(evaluate(condition, Answer.encode_list(["a", "B"])))
 
     def test_in_operator_missing_parent_value_is_false(self):
-        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="Yes")
+        condition = QuestionCondition(
+            depends_on=Question(type=Question.RADIO), operator=QuestionCondition.OP_IN, choices="Yes"
+        )
         self.assertFalse(evaluate(condition, None))
 
     def test_in_operator_empty_string_is_false(self):
-        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="Yes")
+        condition = QuestionCondition(
+            depends_on=Question(type=Question.RADIO), operator=QuestionCondition.OP_IN, choices="Yes"
+        )
         self.assertFalse(evaluate(condition, ""))
 
     def test_in_operator_empty_list_is_false(self):
-        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="Yes")
+        condition = QuestionCondition(
+            depends_on=Question(type=Question.RADIO), operator=QuestionCondition.OP_IN, choices="Yes"
+        )
         self.assertFalse(evaluate(condition, []))
 
     def test_eq_true(self):
@@ -459,13 +481,17 @@ class UnslugifiedConditionTests(TestCase):
     """Conditions compare raw choice values, so signs and non-ASCII letters count."""
 
     def test_in_operator_tells_minus_from_plus(self):
-        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="−4")
+        condition = QuestionCondition(
+            depends_on=Question(type=Question.RADIO), operator=QuestionCondition.OP_IN, choices="−4"
+        )
         self.assertTrue(evaluate(condition, "−4"))
         self.assertFalse(evaluate(condition, "+4"))
         self.assertFalse(evaluate(condition, "4"))
 
     def test_in_operator_matches_non_ascii_choice(self):
-        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="Ehkä")
+        condition = QuestionCondition(
+            depends_on=Question(type=Question.RADIO), operator=QuestionCondition.OP_IN, choices="Ehkä"
+        )
         self.assertTrue(evaluate(condition, "Ehkä"))
         self.assertFalse(evaluate(condition, "Ehka"))
 
@@ -476,7 +502,7 @@ class UnslugifiedConditionTests(TestCase):
         make_condition(child, parent, QuestionCondition.OP_IN, choices="−4,Ehkä,I don't know")
         form = ResponseForm(survey=survey, user=AnonymousUser(), step=0)
         widget_attrs = form.fields[f"question_{child.pk}"].widget.attrs
-        self.assertEqual(json.loads(widget_attrs["data-cond-choices"]), ["−4", "Ehkä", "I dont know"])
+        self.assertEqual(json.loads(widget_attrs["data-cond-choices"]), ["−4", "Ehkä", "I don't know"])
 
     def test_form_shows_child_only_for_matching_sign(self):
         survey = make_survey()
@@ -503,11 +529,15 @@ class CustomChoicesSeparatorTests(TestCase):
         self.child = make_question(self.survey, Question.TEXT, order=2, text="Child")
 
     def test_clean_choice_labels_splits_on_configured_separator(self):
-        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="Yes, sometimes| No")
+        condition = QuestionCondition(
+            depends_on=Question(type=Question.RADIO), operator=QuestionCondition.OP_IN, choices="Yes, sometimes| No"
+        )
         self.assertEqual(condition._clean_choice_labels(), ["Yes, sometimes", "No"])
 
     def test_evaluate_in_matches_choice_containing_comma(self):
-        condition = QuestionCondition(operator=QuestionCondition.OP_IN, choices="Yes, sometimes")
+        condition = QuestionCondition(
+            depends_on=Question(type=Question.RADIO), operator=QuestionCondition.OP_IN, choices="Yes, sometimes"
+        )
         self.assertTrue(evaluate(condition, "Yes, sometimes"))
         self.assertFalse(evaluate(condition, "Yes"))
         self.assertFalse(evaluate(condition, "No"))

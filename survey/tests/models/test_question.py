@@ -6,6 +6,7 @@ from django.utils.translation import gettext_lazy as _
 
 from survey.models import Answer, Question, Response, Survey
 from survey.tests.models import BaseModelTest
+from survey.tests.test_other_option import make_question, make_survey, store_answer
 
 
 class TestQuestion(BaseModelTest):
@@ -56,7 +57,7 @@ class TestQuestion(BaseModelTest):
         self.questions[0].choices = "A()a|  |C()c"
         self.assertEqual(self.questions[0].get_choices(), (("A()a", "A()a"), ("C()c", "C()c")))
         self.questions[0].choices = "Yes, I do| No, I don't"
-        self.assertEqual(self.questions[0].get_choices(), (("Yes, I do", "Yes, I do"), ("No, I dont", "No, I don't")))
+        self.assertEqual(self.questions[0].get_choices(), (("Yes, I do", "Yes, I do"), ("No, I don't", "No, I don't")))
         self.questions[0].choices = "Женщина|Мужчина"
         self.assertEqual(self.questions[0].get_choices(), (("Женщина", "Женщина"), ("Мужчина", "Мужчина")))
         self.questions[0].choices = "聖黎|はじむ"
@@ -281,7 +282,7 @@ class TestQuestion(BaseModelTest):
 
 
 class TestChoiceValue(TestCase):
-    """Option values are the choice text itself, minus apostrophes."""
+    """Option values are the stripped choice text itself."""
 
     SIGNED_CHOICES = (
         "−5 = It would bother me very much,−4,−3,−2,−1,0 = Neither bother nor please me,"
@@ -291,8 +292,8 @@ class TestChoiceValue(TestCase):
     def test_choice_value_strips_surrounding_whitespace(self):
         self.assertEqual(Question.choice_value("  Yes \t"), "Yes")
 
-    def test_choice_value_removes_apostrophes(self):
-        self.assertEqual(Question.choice_value("I don't 'know'"), "I dont know")
+    def test_choice_value_keeps_apostrophes(self):
+        self.assertEqual(Question.choice_value("I don't 'know'"), "I don't 'know'")
 
     def test_choice_value_keeps_signs_letters_and_inner_spaces(self):
         for choice in ("−4", "+4", "-4", "Äänestän ehkä", "Женщина", "聖黎", "A  b c"):
@@ -309,6 +310,21 @@ class TestChoiceValue(TestCase):
         self.assertIn("−4", values)
         self.assertIn("+4", values)
 
-    def test_get_choices_drops_apostrophe_from_value_only(self):
+    def test_get_choices_keeps_apostrophe_in_value(self):
         question = Question(text="Apostrophe", type=Question.RADIO, choices="Yes,I don't know")
-        self.assertEqual(question.get_choices(), (("Yes", "Yes"), ("I dont know", "I don't know")))
+        self.assertEqual(question.get_choices(), (("Yes", "Yes"), ("I don't know", "I don't know")))
+
+
+class TestSelectMultipleCardinality(TestCase):
+    """Each value of a JSON-stored select-multiple answer counts separately."""
+
+    def test_answers_cardinality_counts_each_selected_value(self):
+        survey = make_survey(name="Select multiple cardinality")
+        question = make_question(survey, Question.SELECT_MULTIPLE, order=1, choices="a,I don't know,c", text="Pick")
+        for values in (["a", "I don't know"], ["I don't know", "c"], ["I don't know"]):
+            response = Response.objects.create(survey=survey)
+            store_answer(question, response, Answer.encode_list(values))
+        self.assertEqual(question.answers_cardinality(), {"a": 1, "I don't know": 3, "c": 1})
+        self.assertEqual(
+            question.sorted_answers_cardinality(sort_answer="cardinal"), {"I don't know": 3, "a": 1, "c": 1}
+        )

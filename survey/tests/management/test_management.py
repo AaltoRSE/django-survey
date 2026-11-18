@@ -40,11 +40,9 @@ class TestManagement(BaseTest):
         self.response_null = Response.objects.create(survey=self.survey, user=User.objects.all()[1])
         self.empty = Answer.objects.create(response=self.response_null, question=self.qst3, body="")
         self.username = "SlctMltipl"
-        self.create_answers(self.username, "[u'1', u'1a', u'1b']", "[u'2', u'2a', u'2b']", "[u'3', u'3a', u'3b']")
+        self.create_answers(self.username, "1", "2", "3")
         self.other_username = "SlctSimilar"
-        self.create_answers(
-            self.other_username, "[u'1e', u'1é', u'1ë']", "[u'2e', u'2é', u'2ë']", "[u'3e', u'3é', u'3ë']"
-        )
+        self.create_answers(self.other_username, "1e", "2e", "3e")
         self.create_answers(None, "", "", "")
 
     def create_big_ranking_survey(self, with_user=False):
@@ -86,8 +84,8 @@ class TestManagement(BaseTest):
 user,Aèbc?,Bècd?,Cède?,Dèef?
 ps250112,1é,2é,3é,
 pierre,,,,
-{self.username},1|1a|1b,2|2a|2b,3|3a|3b,
-{self.other_username},1e|1é|1ë,2e|2é|2ë,3e|3é|3ë,
+{self.username},1,2,3,
+{self.other_username},1e,2e,3e,
 Anonymous,,,,"""
         self.expected_header = ["user", "Aèbc?", "Bècd?", "Cède?", "Dèef?"]
         self.conf_dir = Path(HERE, "..", "exporter", "tex")

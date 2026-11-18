@@ -1,9 +1,6 @@
-from unittest import mock
-
 from django.core.exceptions import ValidationError
 
-from survey.models import Answer
-from survey.models.answer import MAX_LIST_BODY_LENGTH
+from survey.models import Answer, Question
 from survey.tests.models import BaseModelTest
 
 
@@ -32,38 +29,39 @@ class TestAnswer(BaseModelTest):
         self.assertEqual(self.answers[7].body, 28.5)
 
 
-class TestAnswerParseBody(BaseModelTest):
+class TestAnswerDecodeBody(BaseModelTest):
+    MULTI = Question.SELECT_MULTIPLE
+
     def test_plain_string_is_a_single_value(self):
-        self.assertEqual(Answer.parse_body("Mytext"), ["Mytext"])
+        self.assertEqual(Answer.decode_body("Mytext", self.MULTI), ["Mytext"])
 
-    def test_python3_list_body(self):
-        self.assertEqual(Answer.parse_body("['a', 'b']"), ["a", "b"])
-
-    def test_legacy_unicode_list_body(self):
-        self.assertEqual(Answer.parse_body("[u'a', u'b']"), ["a", "b"])
+    def test_json_list_body(self):
+        self.assertEqual(Answer.decode_body('["a", "b"]', self.MULTI), ["a", "b"])
 
     def test_values_with_commas_apostrophes_signs_and_non_ascii(self):
         values = ["Yes, sometimes", "I don't know", "\u22124", "+4", "\u00e9t\u00e9, ok"]
-        self.assertEqual(Answer.parse_body(str(values)), values)
+        self.assertEqual(Answer.decode_body(Answer.encode_list(values), self.MULTI), values)
+
+    def test_encode_list_keeps_non_ascii(self):
+        self.assertEqual(Answer.encode_list(["\u00e9t\u00e9"]), '["\u00e9t\u00e9"]')
 
     def test_empty_list(self):
-        self.assertEqual(Answer.parse_body("[]"), [])
+        self.assertEqual(Answer.decode_body("[]", self.MULTI), [])
 
     def test_none_and_empty_string(self):
-        self.assertEqual(Answer.parse_body(None), [])
-        self.assertEqual(Answer.parse_body(""), [])
+        self.assertEqual(Answer.decode_body(None, self.MULTI), [])
+        self.assertEqual(Answer.decode_body("", self.MULTI), [])
 
     def test_malformed_list_falls_back_to_whole_body(self):
-        self.assertEqual(Answer.parse_body("['a'"), ["['a'"])
+        self.assertEqual(Answer.decode_body('["a"', self.MULTI), ['["a"'])
 
-    def test_non_literal_falls_back_without_executing(self):
-        body = "[__import__('os').system('true')]"
-        with mock.patch("os.system") as system:
-            self.assertEqual(Answer.parse_body(body), [body])
-        system.assert_not_called()
+    def test_legacy_python_list_falls_back_to_whole_body(self):
+        self.assertEqual(Answer.decode_body("['a', 'b']", self.MULTI), ["['a', 'b']"])
 
-    def test_over_length_body_falls_back(self):
-        body = str(["a" * MAX_LIST_BODY_LENGTH])
-        with mock.patch("survey.models.answer.ast.literal_eval") as literal_eval:
-            self.assertEqual(Answer.parse_body(body), [body])
-        literal_eval.assert_not_called()
+    def test_non_list_json_falls_back_to_whole_body(self):
+        self.assertEqual(Answer.decode_body('{"a": 1}', self.MULTI), ['{"a": 1}'])
+        self.assertEqual(Answer.decode_body("42", self.MULTI), ["42"])
+
+    def test_other_types_are_never_split(self):
+        self.assertEqual(Answer.decode_body('["a", "b"]', Question.TEXT), ['["a", "b"]'])
+        self.assertEqual(Answer.decode_body("[1, 2]", Question.RADIO), ["[1, 2]"])

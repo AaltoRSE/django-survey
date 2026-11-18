@@ -1,19 +1,27 @@
 from survey.models import Answer, Question, QuestionCondition
 
 
-def _as_value_list(raw_value):
+def _as_value_list(raw_value, question_type):
     """Normalize a raw parent answer value into a list of choice values.
 
-    ``raw_value`` may already be a list (select-multiple submitted data), or a
-    single string, or a stringified list stored in ``Answer.body`` such as
-    ``"['a', 'b']"`` (parsed with ``Answer.parse_body``). Each value goes through
-    ``Question.choice_value`` so it compares equal to the condition's labels.
+    Each value goes through ``Question.choice_value`` so it compares equal to
+    the condition's labels.
+
+    Args:
+        raw_value (list | tuple | str | None): The parent's value: a list
+            (select-multiple submitted data) or a single string, such as a
+            stored ``Answer.body`` (a JSON list for select-multiple).
+        question_type (str): The parent question's type, used to decode a
+            string value with ``Answer.decode_body``.
+
+    Returns:
+        list[str]: The choice values.
     """
     if raw_value is None:
         return []
     if isinstance(raw_value, (list, tuple)):
         return [Question.choice_value(v) for v in raw_value if v not in (None, "")]
-    return [Question.choice_value(v) for v in Answer.parse_body(str(raw_value))]
+    return [Question.choice_value(v) for v in Answer.decode_body(str(raw_value), question_type)]
 
 
 def evaluate(condition, raw_value):
@@ -23,7 +31,7 @@ def evaluate(condition, raw_value):
     hidden until the parent is answered).
     """
     if condition.operator == QuestionCondition.OP_IN:
-        values = set(_as_value_list(raw_value))
+        values = set(_as_value_list(raw_value, condition.depends_on.type))
         if not values:
             return False
         condition_values = {Question.choice_value(label) for label in condition._clean_choice_labels()}

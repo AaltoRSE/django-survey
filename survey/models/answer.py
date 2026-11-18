@@ -4,7 +4,7 @@ field sizes depending on the actual question this answer corresponds to any
 "required" attribute will be enforced by the form.
 """
 
-import ast
+import json
 import logging
 
 from django.core.exceptions import ValidationError
@@ -15,10 +15,6 @@ from .question import Question
 from .response import Response
 
 LOGGER = logging.getLogger(__name__)
-# Bodies longer than this are not given to ast.literal_eval: parsing a huge or
-# deeply nested literal costs memory and time, and no real select-multiple
-# answer (a list of choice values) comes anywhere near this size.
-MAX_LIST_BODY_LENGTH = 100_000
 
 
 class Answer(models.Model):
@@ -41,46 +37,58 @@ class Answer(models.Model):
         super().__init__(*args, **kwargs)
 
     @staticmethod
-    def parse_body(body):
-        """Parse a stored answer body into its list of values.
+    def encode_list(values):
+        """Encode a select-multiple answer's values as a stored body.
 
-        Select-multiple answers are stored as Python's ``str(list)``, e.g.
-        ``"['a', 'b']"`` (legacy rows: ``"[u'a', u'b']"``); every other
-        question type stores a plain string. A body starting with ``[`` is
-        parsed with ``ast.literal_eval``, which is safe because it only
-        accepts Python literals and never executes code. Bodies longer than
-        ``MAX_LIST_BODY_LENGTH`` skip that parsing, since evaluating a huge or
-        deeply nested literal can exhaust memory or the recursion limit.
+        Args:
+            values (Iterable[str]): The selected choice values.
+
+        Returns:
+            str: A JSON list, e.g. ``'["a", "b"]'``; non-ASCII is kept as is.
+        """
+        return json.dumps(list(values), ensure_ascii=False)
+
+    @staticmethod
+    def decode_body(body, question_type):
+        """Decode a stored answer body into its list of values.
+
+        Select-multiple answers are stored as a JSON list (see
+        ``encode_list``); every other question type stores a plain string,
+        which is returned whole even when it looks like a list.
 
         Args:
             body (str | None): The stored answer body.
+            question_type (str): The type of the answer's question, e.g.
+                ``Question.SELECT_MULTIPLE``.
 
         Returns:
-            list[str]: The values; ``[]`` for ``None`` or ``""``, the whole
-            body as the single value when it is not a parsable list.
+            list[str]: The values; ``[]`` for ``None`` or ``""``. For a
+            select-multiple body that is not a JSON list, the whole body as
+            the single value.
         """
         if body is None or body == "":
             return []
-        body = str(body)
-        if body.strip().startswith("[") and len(body) <= MAX_LIST_BODY_LENGTH:
-            try:
-                parsed = ast.literal_eval(body.strip())
-            except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError):
-                parsed = None
-            if isinstance(parsed, (list, tuple)):
-                return [str(value) for value in parsed if value not in (None, "")]
-        return [body]
+        if question_type != Question.SELECT_MULTIPLE:
+            return [body]
+        try:
+            parsed = json.loads(body)
+        except (ValueError, TypeError, RecursionError):
+            return [body]
+        if not isinstance(parsed, list):
+            return [body]
+        return [str(value) for value in parsed if value not in (None, "")]
 
     @property
     def values(self):
         """Return the answer's values.
 
         A missing or empty body gives ``[None]`` or ``[""]``, so exporters and
-        cardinality code still count it as a blank answer.
+        cardinality code still count it as a blank answer. Otherwise the body
+        is decoded according to the question's type (see ``decode_body``).
         """
         if self.body is None or self.body == "":
             return [self.body]
-        return Answer.parse_body(self.body)
+        return Answer.decode_body(self.body, self.question.type)
 
     def check_answer_body(self, question, body):
         if question.type in [
@@ -91,7 +99,7 @@ class Answer(models.Model):
             Question.INTEGER_SCALE,
         ]:
             choices = question.get_clean_choices()
-            self.check_answer_for_select(choices, body)
+            self.check_answer_for_select(choices, body, question.type)
         if question.type == Question.INTEGER and body and body != "":
             try:
                 body = int(body)
@@ -105,8 +113,18 @@ class Answer(models.Model):
                 msg = "Answer is not a number"
                 raise ValidationError(msg) from e
 
-    def check_answer_for_select(self, choices, body):
-        answers = Answer.parse_body(body) if body else []
+    def check_answer_for_select(self, choices, body, question_type):
+        """Raise ValidationError if a body holds a value outside the choices.
+
+        Args:
+            choices (list[str]): The question's clean choice labels.
+            body (str): The answer body to check.
+            question_type (str): The question's type, used to decode the body.
+
+        Raises:
+            ValidationError: A value is not one of the choices' values.
+        """
+        answers = Answer.decode_body(body, question_type) if body else []
         choice_values = [Question.choice_value(choice) for choice in choices]
         for answer in answers:
             if answer not in choice_values:

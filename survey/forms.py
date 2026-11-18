@@ -365,7 +365,7 @@ class ResponseForm(models.ModelForm):
                 # Kept as a plain string, also for select-multiple questions.
                 initial = answer.body
             elif question.type == Question.SELECT_MULTIPLE:
-                initial = Answer.parse_body(answer.body)
+                initial = Answer.decode_body(answer.body, question.type)
             else:
                 initial = answer.body
             if question.pk in self._other_questions:
@@ -832,7 +832,11 @@ class ResponseForm(models.ModelForm):
                     value, img_src = field_value.split(":", 1)
                     # TODO Handling of SELECT IMAGE
                     LOGGER.debug("Question.SELECT_IMAGE not implemented, please use : %s and %s", value, img_src)
-                answer.body = field_value
+                if question.type == Question.SELECT_MULTIPLE and field_value != self.WILL_NOT_ANSWER_SENTINEL:
+                    # The "will not answer" sentinel stays a plain string.
+                    answer.body = Answer.encode_list(field_value)
+                else:
+                    answer.body = field_value
                 answer.other_text = self.cleaned_data.get(f"{field_name}_other") or None
                 data["responses"].append((answer.question.id, answer.body))
                 LOGGER.debug("Creating answer for question %d of type %s : %s", q_id, answer.question.type, field_value)

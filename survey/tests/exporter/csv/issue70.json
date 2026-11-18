@@ -284,7 +284,7 @@
   "response": 1,
   "created": "2020-02-04T06:39:22.400Z",
   "updated": "2020-02-04T15:20:34.501Z",
-  "body": "['Admin', 'Calls', 'Events']"
+  "body": "[\"Admin\", \"Calls\", \"Events\"]"
  }
 },
 {

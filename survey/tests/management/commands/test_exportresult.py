@@ -2,11 +2,16 @@ from pathlib import Path
 from warnings import warn
 
 from django.conf import settings
+from django.contrib.auth.models import User
 from django.core.management import call_command
+from django.test import TestCase
 from django.utils.text import slugify
 
+from survey.exporter.csv import Survey2Csv
 from survey.exporter.tex import XelatexNotInstalled
+from survey.models import Answer, Question, Response
 from survey.tests.management.test_management import TestManagement
+from survey.tests.test_other_option import make_question, make_survey, store_answer
 
 
 class TestExportresult(TestManagement):
@@ -56,3 +61,18 @@ consectetur<strong> adipiscing</strong> elit.
 pierre,Yës|Maybe,No,Text for a response,,2,No|Whatever
 ps250112,Yës,Yës,,,1,Yës"""
         self.assertMultiLineEqual(expected, self.get_file_content(csvs[1]))
+
+
+class TestExportresultSelectMultiple(TestCase):
+    """The exportresult csv holds JSON-stored select-multiple answers as joined values."""
+
+    def test_csv_joins_select_multiple_values(self):
+        survey = make_survey(name="Select multiple export")
+        question = make_question(survey, Question.SELECT_MULTIPLE, order=1, choices="a,b,c", text="Pick")
+        user = User.objects.create(username="multi")
+        response = Response.objects.create(survey=survey, user=user)
+        store_answer(question, response, Answer.encode_list(["a", "c"]))
+        csv_path = Survey2Csv(survey).filename
+        self.addCleanup(csv_path.unlink, missing_ok=True)
+        call_command("exportresult", "--csv", "--force", survey_id=[survey.pk])
+        self.assertEqual(csv_path.read_text(encoding="UTF-8"), "user,Pick\nmulti,a|c")

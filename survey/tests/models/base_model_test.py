@@ -23,7 +23,7 @@ class BaseModelTest(BaseTest):
             # [Question.SELECT_IMAGE,Answer, "TODO" ,None],
             [Question.SELECT_MULTIPLE, "Yes", "Yes, No, Maybe"],
             [Question.INTEGER, 42, None],
-            [Question.SELECT_MULTIPLE, "[u'2', u'4']", "2, 4, 6"],
+            [Question.SELECT_MULTIPLE, '["2", "4"]', "2, 4, 6"],
             [Question.FLOAT, 28.5, None],
             [Question.LIKERT_5, "Agree", None],
             [Question.TIME, "14:30:00", None],

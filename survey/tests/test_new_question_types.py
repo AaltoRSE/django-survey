@@ -198,15 +198,15 @@ class RedisplayTests(TestCase):
 
 @override_settings(CHOICES_SEPARATOR="|")
 class SelectMultipleRedisplayCustomSeparatorTests(TestCase):
-    """A stored select-multiple body is str(list), joined with ", " whatever
-    the choices separator is, so it must reload under another separator."""
+    """A stored select-multiple body is a JSON list whatever the choices
+    separator is, so it must reload under another separator."""
 
     def test_stored_select_multiple_answer_reloads(self):
         survey = make_survey(need_logged_user=True, editable_answers=True)
         question = make_question(survey, Question.SELECT_MULTIPLE, order=1, choices="a|b|c", text="Pick")
         user = User.objects.create_user(username="separator", password="testpass")
         response = Response.objects.create(survey=survey, user=user, interview_uuid=str(uuid.uuid4()))
-        store_answer(question, response, "['a', 'c']")
+        store_answer(question, response, '["a", "c"]')
         form = ResponseForm(survey=survey, user=user, step=0)
         self.assertEqual(form.fields[f"question_{question.pk}"].initial, ["a", "c"])
 
@@ -473,7 +473,7 @@ class ChoiceValueRoundTripTests(TestCase):
 
     def _save(self):
         data = qd({f"question_{self.minus.pk}": "−4", f"question_{self.plus.pk}": "+4"})
-        data.setlist(f"question_{self.multi.pk}", ["Yes", "I dont know"])
+        data.setlist(f"question_{self.multi.pk}", ["Yes", "I don't know"])
         form = ResponseForm(data, survey=self.survey, user=self.user, step=0)
         self.assertTrue(form.is_valid(), form.errors)
         return form.save()
@@ -495,4 +495,4 @@ class ChoiceValueRoundTripTests(TestCase):
         # The stored body passes the answer's own choice validation.
         Answer(question=self.multi, response=response, body=body)
         form = ResponseForm(survey=self.survey, user=self.user, step=0)
-        self.assertEqual(form.fields[f"question_{self.multi.pk}"].initial, ["Yes", "I dont know"])
+        self.assertEqual(form.fields[f"question_{self.multi.pk}"].initial, ["Yes", "I don't know"])
